@@ -8,3 +8,4 @@ date:   2021-08-08 09:44:30 -0400
 * [Coursera C++](https://www.codecademy.com/learn/learn-c-plus-plus)
 * [Reddit interview problems](https://alexgolec.dev/reddit-interview-problems-the-game-of-life/)
 * [Courera Javascript](https://www.coursera.org/specializations/full-stack-react)
+* [Javascript resource website](https://javascript.info/)
