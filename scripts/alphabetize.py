@@ -1,45 +1,21 @@
+import re
+from pathlib import Path
 
 
-from xml.etree.ElementTree import QName
+repo_root = Path(__file__).resolve().parents[1]
+tunes_path = repo_root / "src" / "data" / "tunes.ts"
+data = tunes_path.read_text(encoding="utf-8")
 
+match = re.search(r"(export const tunes: LinkItem\[] = \[)(.*?)(\];)", data, re.S)
+if not match:
+    raise RuntimeError("Could not find the tunes array in src/data/tunes.ts")
 
-tunes = None
-try:
-    tunes = open('../_posts/2021-12-08-tunes.md', 'r+')
-except FileNotFoundError:
-    print('here2')
-    tunes = open('_posts/2021-12-08-tunes.md', 'r+')
+items = re.findall(r'\{ name: "([^"]+)", href: "([^"]+)" \}', match.group(2))
+items.sort(key=lambda item: item[0].lower())
 
-
-lines = tunes.readlines()
-
-tunesdict = {}
-tuneslist = []
-dashcount = 0
-tunes_start = 0
-tunes_end = 0
-for k, line in enumerate(lines):
-    if line[:3] == '---':
-        dashcount += 1
-    if dashcount == 2 and tunes_start == 0:
-        tunes_start = k
-    if dashcount == 3 and tunes_end == 0:
-        tunes_end = k
-    if dashcount == 2: # dont want to sort the transcriptions section
-        if line[:3] == '* [':
-            for i, c in enumerate(line):
-                if c == ']':
-                    name_end = i
-                    break
-            tune_name = line[3:name_end]
-            tunesdict[tune_name] = line
-            tuneslist.append(tune_name)
-tuneslist.sort()
-for i, tune in enumerate(tuneslist):
-    tuneslist[i] = tunesdict[tune]
-
-new_lines = lines[0:tunes_start+2] + tuneslist + ['\n'] + lines[tunes_end:]
-new_tunes = open('newtunes.md', 'w+')
-new_tunes.writelines(new_lines)
-new_tunes.close()
-
+lines = [
+    f'  {{ name: "{name}", href: "{href}" }}{"," if index < len(items) - 1 else ""}'
+    for index, (name, href) in enumerate(items)
+]
+replacement = match.group(1) + "\n" + "\n".join(lines) + "\n" + match.group(3)
+tunes_path.write_text(data[:match.start()] + replacement + data[match.end():], encoding="utf-8")

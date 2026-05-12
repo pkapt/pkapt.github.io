@@ -1,5 +1,14 @@
-### Useful commands
+# Peters Fiddle Tunes
+
+Astro-powered static site for tune practice.
+
+## Useful Commands
+
+```powershell
+npm install
+npm run dev
+npm run build
+npm run preview
 ```
-C:\> jekyll serve
-C:\> bundle exec jekyll serve
-```
+
+The local dev server usually runs at `http://127.0.0.1:4321/`.

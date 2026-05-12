@@ -1,0 +1,396 @@
+<section class="trainer-shell" aria-labelledby="tune-trainer-title">
+  <div class="trainer-copy">
+    <p class="eyebrow">Spaced-ish repetition</p>
+    <h2 id="tune-trainer-title">Practice Queue</h2>
+    <p class="trainer-copy__note">Unrated and shaky tunes surface more often. Good tunes still loop back occasionally.</p>
+  </div>
+
+  <div class="trainer-board">
+    <div class="trainer-board__top">
+      <button id="tune-trainer-pick" class="primary-action" type="button">Get Tune</button>
+      <button id="tune-trainer-reset" class="ghost-action" type="button">Reset</button>
+    </div>
+
+    <div id="tune-trainer-card" class="practice-card" hidden>
+      <span id="tune-trainer-label" class="practice-card__label">Next up</span>
+      <a id="tune-trainer-link" href=""></a>
+      <div class="tune-trainer__rating" aria-label="Rate this tune">
+        <button type="button" data-rating="1">1 Good</button>
+        <button type="button" data-rating="2">2 OK</button>
+        <button type="button" data-rating="3">3 Needs Work</button>
+      </div>
+    </div>
+
+    <div id="tune-trainer-empty" class="practice-card practice-card--empty">
+      <span class="practice-card__label">Ready</span>
+      <p>Press Get Tune to pull from the deck.</p>
+    </div>
+  </div>
+
+  <div class="trainer-metrics" aria-label="Rating progress">
+    <div class="metric metric--good">
+      <span id="metric-good">0</span>
+      <p>Good</p>
+    </div>
+    <div class="metric metric--ok">
+      <span id="metric-ok">0</span>
+      <p>OK</p>
+    </div>
+    <div class="metric metric--work">
+      <span id="metric-work">0</span>
+      <p>Needs Work</p>
+    </div>
+    <div class="metric metric--unrated">
+      <span id="metric-unrated">0</span>
+      <p>Unrated</p>
+    </div>
+  </div>
+
+  <div class="progress-strip" aria-hidden="true">
+    <span id="progress-good"></span>
+    <span id="progress-ok"></span>
+    <span id="progress-work"></span>
+  </div>
+  <p id="tune-trainer-status" class="tune-trainer__status"></p>
+</section>
+
+<script>
+  const storageKey = "pkapt-tune-trainer-ratings-v1";
+  const tunes = Array.from(document.querySelectorAll<HTMLAnchorElement>("#tunes-list a")).map((link) => ({
+    name: link.textContent?.trim() ?? "",
+    href: link.href
+  }));
+
+  const pickButton = document.getElementById("tune-trainer-pick");
+  const resetButton = document.getElementById("tune-trainer-reset");
+  const card = document.getElementById("tune-trainer-card");
+  const emptyCard = document.getElementById("tune-trainer-empty");
+  const tuneLink = document.getElementById("tune-trainer-link") as HTMLAnchorElement | null;
+  const status = document.getElementById("tune-trainer-status");
+  const label = document.getElementById("tune-trainer-label");
+  const metricGood = document.getElementById("metric-good");
+  const metricOk = document.getElementById("metric-ok");
+  const metricWork = document.getElementById("metric-work");
+  const metricUnrated = document.getElementById("metric-unrated");
+  const progressGood = document.getElementById("progress-good");
+  const progressOk = document.getElementById("progress-ok");
+  const progressWork = document.getElementById("progress-work");
+  let currentTune: { name: string; href: string } | null = null;
+
+  function loadRatings(): Record<string, number> {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) ?? "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function saveRatings(ratings: Record<string, number>) {
+    localStorage.setItem(storageKey, JSON.stringify(ratings));
+    window.dispatchEvent(new CustomEvent("tune-ratings-changed"));
+  }
+
+  function getWeight(tune: { name: string }, ratings: Record<string, number>) {
+    const rating = Number(ratings[tune.name]);
+    if (rating === 1) return 1;
+    if (rating === 2) return 3;
+    if (rating === 3) return 7;
+    return 9;
+  }
+
+  function pickWeightedTune() {
+    const ratings = loadRatings();
+    const weightedTunes = tunes.map((tune) => ({
+      tune,
+      weight: getWeight(tune, ratings)
+    }));
+    const totalWeight = weightedTunes.reduce((sum, item) => sum + item.weight, 0);
+    let target = Math.random() * totalWeight;
+
+    for (const item of weightedTunes) {
+      target -= item.weight;
+      if (target <= 0) {
+        return item.tune;
+      }
+    }
+
+    return tunes[tunes.length - 1];
+  }
+
+  function updateStatus() {
+    const ratings = loadRatings();
+    const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
+    const knownTuneNames = new Set(tunes.map((tune) => tune.name));
+    const ratedNames = Object.keys(ratings).filter((name) => knownTuneNames.has(name));
+
+    ratedNames.forEach((name) => {
+      const rating = ratings[name];
+      if (counts[rating] !== undefined) {
+        counts[rating] += 1;
+      }
+    });
+
+    const unrated = tunes.length - ratedNames.length;
+    const rated = ratedNames.length;
+    const goodPct = tunes.length ? (counts[1] / tunes.length) * 100 : 0;
+    const okPct = tunes.length ? (counts[2] / tunes.length) * 100 : 0;
+    const workPct = tunes.length ? (counts[3] / tunes.length) * 100 : 0;
+
+    if (metricGood) metricGood.textContent = String(counts[1]);
+    if (metricOk) metricOk.textContent = String(counts[2]);
+    if (metricWork) metricWork.textContent = String(counts[3]);
+    if (metricUnrated) metricUnrated.textContent = String(unrated);
+    if (progressGood) progressGood.style.width = `${goodPct}%`;
+    if (progressOk) progressOk.style.width = `${okPct}%`;
+    if (progressWork) progressWork.style.width = `${workPct}%`;
+
+    if (status) {
+      status.textContent = `${rated} of ${tunes.length} rated. The deck is weighted toward unrated and needs-work tunes.`;
+    }
+
+    window.dispatchEvent(new CustomEvent("tune-ratings-changed"));
+  }
+
+  function showTune(tune: { name: string; href: string }) {
+    currentTune = tune;
+    if (!tuneLink || !card || !emptyCard) return;
+
+    const ratings = loadRatings();
+    const rating = ratings[tune.name];
+
+    tuneLink.textContent = tune.name;
+    tuneLink.href = tune.href;
+    if (label) label.textContent = rating ? `Current rating: ${rating}` : "Unrated";
+    card.hidden = false;
+    emptyCard.hidden = true;
+  }
+
+  pickButton?.addEventListener("click", () => {
+    const tune = pickWeightedTune();
+    if (tune) showTune(tune);
+  });
+
+  card?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const rating = target.getAttribute("data-rating");
+    if (!rating || !currentTune) return;
+
+    const ratings = loadRatings();
+    ratings[currentTune.name] = Number(rating);
+    saveRatings(ratings);
+    updateStatus();
+
+    const tune = pickWeightedTune();
+    if (tune) showTune(tune);
+  });
+
+  resetButton?.addEventListener("click", () => {
+    if (!window.confirm("Clear all saved tune ratings in this browser?")) return;
+    localStorage.removeItem(storageKey);
+    if (card) card.hidden = true;
+    if (emptyCard) emptyCard.hidden = false;
+    currentTune = null;
+    updateStatus();
+  });
+
+  updateStatus();
+</script>
+
+<style>
+  .trainer-shell {
+    background:
+      linear-gradient(135deg, rgba(17, 28, 22, 0.92), rgba(20, 24, 19, 0.84)),
+      radial-gradient(circle at 82% 16%, rgba(225, 150, 72, 0.2), transparent 22rem),
+      radial-gradient(circle at 18% 20%, rgba(74, 184, 129, 0.18), transparent 20rem);
+    border: 1px solid rgba(214, 237, 218, 0.14);
+    border-radius: 8px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+  }
+
+  .trainer-copy h2 {
+    font-size: clamp(1.65rem, 3vw, 2.5rem);
+    line-height: 1.08;
+  }
+
+  .trainer-copy__note {
+    color: #a7b8a9;
+    margin: 0.65rem 0 0;
+    max-width: 34rem;
+  }
+
+  .trainer-board {
+    display: grid;
+    gap: 0.8rem;
+  }
+
+  .trainer-board__top {
+    display: flex;
+    gap: 0.55rem;
+  }
+
+  .primary-action,
+  .ghost-action,
+  .tune-trainer__rating button {
+    border-radius: 7px;
+    cursor: pointer;
+    font-weight: 800;
+    min-height: 2.7rem;
+    padding: 0.55rem 0.8rem;
+  }
+
+  .primary-action {
+    background: #8be0ad;
+    border: 1px solid #8be0ad;
+    color: #07110d;
+    flex: 1;
+  }
+
+  .ghost-action {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(214, 237, 218, 0.16);
+    color: #d4e3d2;
+  }
+
+  .practice-card {
+    background:
+      linear-gradient(135deg, rgba(7, 17, 13, 0.96), rgba(20, 33, 24, 0.94));
+    border: 1px solid rgba(214, 237, 218, 0.12);
+    border-radius: 8px;
+    color: #fff;
+    min-height: 10rem;
+    padding: 1rem;
+  }
+
+  .practice-card--empty {
+    background: rgba(255, 255, 255, 0.055);
+    color: #b7c6b7;
+  }
+
+  .practice-card__label {
+    color: #9edfb7;
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .practice-card a {
+    color: #fff;
+    display: inline-block;
+    font-size: clamp(1.6rem, 4vw, 2.6rem);
+    font-weight: 850;
+    line-height: 1.05;
+    margin: 0.35rem 0 1rem;
+    text-decoration: none;
+  }
+
+  .practice-card--empty p {
+    font-size: 1.15rem;
+    margin: 0.4rem 0 0;
+  }
+
+  .tune-trainer__rating {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .tune-trainer__rating button {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(214, 237, 218, 0.16);
+    color: #f2f4ea;
+  }
+
+  .trainer-metrics {
+    display: grid;
+    gap: 0.55rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric {
+    background: rgba(255, 255, 255, 0.065);
+    border: 1px solid rgba(214, 237, 218, 0.12);
+    border-radius: 8px;
+    padding: 0.75rem;
+  }
+
+  .metric span {
+    display: block;
+    font-size: 1.55rem;
+    font-weight: 850;
+    line-height: 1;
+  }
+
+  .metric p {
+    color: #a7b8a9;
+    font-size: 0.78rem;
+    font-weight: 760;
+    margin: 0.24rem 0 0;
+    text-transform: uppercase;
+  }
+
+  .metric--good span {
+    color: #91eba0;
+  }
+
+  .metric--ok span {
+    color: #f0d076;
+  }
+
+  .metric--work span {
+    color: #ff9f8e;
+  }
+
+  .progress-strip {
+    background: rgba(255, 255, 255, 0.09);
+    border-radius: 999px;
+    display: flex;
+    height: 0.6rem;
+    overflow: hidden;
+  }
+
+  .progress-strip span {
+    display: block;
+    transition: width 220ms ease;
+    width: 0;
+  }
+
+  #progress-good {
+    background: #72d985;
+  }
+
+  #progress-ok {
+    background: #e9c75e;
+  }
+
+  #progress-work {
+    background: #ef765b;
+  }
+
+  .tune-trainer__status {
+    color: #a7b8a9;
+    margin: 0;
+  }
+
+  @media (min-width: 860px) {
+    .trainer-shell {
+      grid-template-columns: minmax(0, 0.95fr) minmax(22rem, 1.15fr);
+      padding: 1.25rem;
+    }
+
+    .trainer-metrics,
+    .progress-strip,
+    .tune-trainer__status {
+      grid-column: 1 / -1;
+    }
+
+    .trainer-metrics {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+</style>

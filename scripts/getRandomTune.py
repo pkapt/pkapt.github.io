@@ -1,40 +1,22 @@
-
-
-from xml.etree.ElementTree import QName
 import random
-
-SECTION_SEP = '---'
-
-tunes = None
-try:
-    tunes = open('../_posts/2021-12-08-tunes.md', 'r+')
-except FileNotFoundError:
-    tunes = open('_posts/2021-12-08-tunes.md', 'r+')
+import re
+from pathlib import Path
 
 
-lines = tunes.readlines()
+def tunes_data_path() -> Path:
+    repo_root = Path(__file__).resolve().parents[1]
+    return repo_root / "src" / "data" / "tunes.ts"
 
-tuneslist = []
-sectionSeparatorCount = 0
-tunes_start = 0
-tunes_end = 0
-for k, line in enumerate(lines):
-    if line[:3] == SECTION_SEP:
-        sectionSeparatorCount += 1
 
-    if sectionSeparatorCount == 3 and tunes_start == 0:
-        tunes_start = k
-    if sectionSeparatorCount == 4 and tunes_end == 0:
-        tunes_end = k
-    if sectionSeparatorCount == 3: # dont want to sort the transcriptions section
-        if line[:3] == '* [':
-            for i, c in enumerate(line):
-                if c == ']':
-                    name_end = i
-                    break
-            tune_name = line[3:name_end]
-            tuneslist.append(tune_name)
+data = tunes_data_path().read_text(encoding="utf-8")
+tunes_block = re.search(r"export const tunes: LinkItem\[] = \[(.*?)\];", data, re.S)
 
-tune = random.choice(tuneslist)
+if not tunes_block:
+    raise RuntimeError("Could not find the tunes array in src/data/tunes.ts")
 
-print("\n"+tune+"\n")
+tunes = re.findall(r'name: "([^"]+)"', tunes_block.group(1))
+
+if not tunes:
+    raise RuntimeError("No tunes found in src/data/tunes.ts")
+
+print(f"\n{random.choice(tunes)}\n")
