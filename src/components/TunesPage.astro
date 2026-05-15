@@ -43,33 +43,6 @@ function resourceKind(href: string) {
 
 <TuneTrainer />
 
-<section class="utility-grid" aria-label="Practice resources">
-  <article class="panel">
-    <div class="panel__header">
-      <h2>Backing Tracks</h2>
-      <span>{backingTracks.length}</span>
-    </div>
-    <div class="track-buttons">
-      {backingTracks.map((track) => <a class="track-button" href={track.href}>{track.name}</a>)}
-    </div>
-  </article>
-
-  <article class="panel">
-    <div class="panel__header">
-      <h2>Transcriptions</h2>
-      <span>{transcriptions.length}</span>
-    </div>
-    <div class="link-stack">
-      {transcriptions.map((transcription) => (
-        <a href={transcription.href}>
-          <span>{transcription.name}</span>
-          <small>{resourceLabel(transcription.href)}</small>
-        </a>
-      ))}
-    </div>
-  </article>
-</section>
-
 <section class="library" aria-labelledby="tunes-heading">
   <div class="library__top">
     <div>
@@ -100,6 +73,33 @@ function resourceKind(href: string) {
     ))}
   </div>
   <p id="empty-library-message" class="empty-message" hidden>No tunes match that filter.</p>
+</section>
+
+<section class="utility-grid" aria-label="Practice resources">
+  <article class="panel">
+    <div class="panel__header">
+      <h2>Backing Tracks</h2>
+      <span>{backingTracks.length}</span>
+    </div>
+    <div class="track-buttons">
+      {backingTracks.map((track) => <a class="track-button" href={track.href}>{track.name}</a>)}
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="panel__header">
+      <h2>Transcriptions</h2>
+      <span>{transcriptions.length}</span>
+    </div>
+    <div class="link-stack">
+      {transcriptions.map((transcription) => (
+        <a href={transcription.href}>
+          <span>{transcription.name}</span>
+          <small>{resourceLabel(transcription.href)}</small>
+        </a>
+      ))}
+    </div>
+  </article>
 </section>
 
 <script>

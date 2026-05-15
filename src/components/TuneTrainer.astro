@@ -11,6 +11,41 @@
       <button id="tune-trainer-reset" class="ghost-action" type="button">Reset</button>
     </div>
 
+    <div class="practice-timer" aria-labelledby="practice-timer-title">
+      <div class="practice-timer__header">
+        <div>
+          <span class="practice-card__label">Timer</span>
+          <h3 id="practice-timer-title">Practice Block</h3>
+        </div>
+        <label class="practice-timer__duration">
+          <span>Minutes</span>
+          <input id="practice-timer-minutes" type="number" min="1" max="180" step="1" value="20" />
+        </label>
+      </div>
+      <div id="practice-timer-display" class="practice-timer__display" aria-live="polite">20:00</div>
+      <div class="practice-timer__actions">
+        <button id="practice-timer-start" class="primary-action" type="button">Start</button>
+        <button id="practice-timer-reset" class="ghost-action" type="button">Reset</button>
+      </div>
+    </div>
+
+    <div class="metronome" aria-labelledby="metronome-title">
+      <div class="metronome__header">
+        <div>
+          <span class="practice-card__label">Metronome</span>
+          <h3 id="metronome-title">Tempo</h3>
+        </div>
+        <label class="metronome__bpm">
+          <span>BPM</span>
+          <input id="metronome-bpm" type="number" min="30" max="260" step="1" value="100" />
+        </label>
+      </div>
+      <div class="metronome__actions">
+        <button id="metronome-start" class="primary-action" type="button">Start</button>
+        <span id="metronome-status" class="metronome__status">100 BPM</span>
+      </div>
+    </div>
+
     <div id="tune-trainer-card" class="practice-card" hidden>
       <span id="tune-trainer-label" class="practice-card__label">Next up</span>
       <a id="tune-trainer-link" href=""></a>
@@ -75,7 +110,18 @@
   const progressGood = document.getElementById("progress-good");
   const progressOk = document.getElementById("progress-ok");
   const progressWork = document.getElementById("progress-work");
+  const timerMinutesInput = document.getElementById("practice-timer-minutes") as HTMLInputElement | null;
+  const timerDisplay = document.getElementById("practice-timer-display");
+  const timerStartButton = document.getElementById("practice-timer-start");
+  const timerResetButton = document.getElementById("practice-timer-reset");
+  const metronomeBpmInput = document.getElementById("metronome-bpm") as HTMLInputElement | null;
+  const metronomeStartButton = document.getElementById("metronome-start");
+  const metronomeStatus = document.getElementById("metronome-status");
   let currentTune: { name: string; href: string } | null = null;
+  let timerSeconds = 20 * 60;
+  let timerId: number | null = null;
+  let audioContext: AudioContext | null = null;
+  let metronomeId: number | null = null;
 
   function loadRatings(): Record<string, number> {
     try {
@@ -165,6 +211,117 @@
     emptyCard.hidden = true;
   }
 
+  function formatTime(totalSeconds: number) {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  function getSelectedSeconds() {
+    const minutes = Number(timerMinutesInput?.value);
+    const boundedMinutes = Math.min(Math.max(Number.isFinite(minutes) ? minutes : 20, 1), 180);
+    if (timerMinutesInput) timerMinutesInput.value = String(boundedMinutes);
+    return Math.round(boundedMinutes * 60);
+  }
+
+  function updateTimerDisplay() {
+    if (timerDisplay) timerDisplay.textContent = formatTime(timerSeconds);
+  }
+
+  function stopTimer() {
+    if (timerId === null) return;
+    window.clearInterval(timerId);
+    timerId = null;
+    if (timerStartButton) timerStartButton.textContent = "Start";
+    if (timerMinutesInput) timerMinutesInput.disabled = false;
+  }
+
+  function resetTimer() {
+    stopTimer();
+    timerSeconds = getSelectedSeconds();
+    updateTimerDisplay();
+  }
+
+  function startTimer() {
+    if (timerId !== null) {
+      stopTimer();
+      return;
+    }
+
+    if (timerSeconds <= 0) {
+      timerSeconds = getSelectedSeconds();
+      updateTimerDisplay();
+    }
+
+    if (timerStartButton) timerStartButton.textContent = "Pause";
+    if (timerMinutesInput) timerMinutesInput.disabled = true;
+    timerId = window.setInterval(() => {
+      timerSeconds -= 1;
+      updateTimerDisplay();
+
+      if (timerSeconds <= 0) {
+        timerSeconds = 0;
+        updateTimerDisplay();
+        stopTimer();
+      }
+    }, 1000);
+  }
+
+  function getSelectedBpm() {
+    const bpm = Number(metronomeBpmInput?.value);
+    const boundedBpm = Math.min(Math.max(Number.isFinite(bpm) ? bpm : 100, 30), 260);
+    if (metronomeBpmInput) metronomeBpmInput.value = String(boundedBpm);
+    return boundedBpm;
+  }
+
+  function updateMetronomeStatus() {
+    const bpm = getSelectedBpm();
+    if (metronomeStatus) metronomeStatus.textContent = metronomeId === null ? `${bpm} BPM` : `Playing ${bpm} BPM`;
+  }
+
+  function playMetronomeClick() {
+    audioContext ??= new AudioContext();
+    const startTime = audioContext.currentTime;
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(1200, startTime);
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.35, startTime + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.045);
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(startTime);
+    oscillator.stop(startTime + 0.05);
+  }
+
+  function stopMetronome() {
+    if (metronomeId !== null) {
+      window.clearInterval(metronomeId);
+      metronomeId = null;
+    }
+
+    if (metronomeStartButton) metronomeStartButton.textContent = "Start";
+    updateMetronomeStatus();
+  }
+
+  function startMetronome() {
+    if (metronomeId !== null) {
+      stopMetronome();
+      return;
+    }
+
+    const bpm = getSelectedBpm();
+    const intervalMs = Math.round(60000 / bpm);
+    playMetronomeClick();
+    metronomeId = window.setInterval(playMetronomeClick, intervalMs);
+
+    if (metronomeStartButton) metronomeStartButton.textContent = "Stop";
+    updateMetronomeStatus();
+  }
+
   pickButton?.addEventListener("click", () => {
     const tune = pickWeightedTune();
     if (tune) showTune(tune);
@@ -193,6 +350,18 @@
     updateStatus();
   });
 
+  timerMinutesInput?.addEventListener("change", resetTimer);
+  timerStartButton?.addEventListener("click", startTimer);
+  timerResetButton?.addEventListener("click", resetTimer);
+  metronomeBpmInput?.addEventListener("change", () => {
+    const wasPlaying = metronomeId !== null;
+    if (wasPlaying) stopMetronome();
+    updateMetronomeStatus();
+    if (wasPlaying) startMetronome();
+  });
+  metronomeStartButton?.addEventListener("click", startMetronome);
+  updateTimerDisplay();
+  updateMetronomeStatus();
   updateStatus();
 </script>
 
@@ -234,12 +403,19 @@
 
   .primary-action,
   .ghost-action,
-  .tune-trainer__rating button {
+  .tune-trainer__rating button,
+  .practice-timer__duration input,
+  .metronome__bpm input {
     border-radius: 7px;
-    cursor: pointer;
     font-weight: 800;
     min-height: 2.7rem;
     padding: 0.55rem 0.8rem;
+  }
+
+  .primary-action,
+  .ghost-action,
+  .tune-trainer__rating button {
+    cursor: pointer;
   }
 
   .primary-action {
@@ -253,6 +429,90 @@
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(214, 237, 218, 0.16);
     color: #d4e3d2;
+  }
+
+  .practice-timer {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(214, 237, 218, 0.12);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  .metronome {
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(214, 237, 218, 0.12);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  .practice-timer__header,
+  .practice-timer__actions,
+  .metronome__header,
+  .metronome__actions {
+    align-items: center;
+    display: flex;
+    gap: 0.65rem;
+    justify-content: space-between;
+  }
+
+  .practice-timer h3,
+  .metronome h3 {
+    font-size: 1.05rem;
+    line-height: 1.15;
+    margin: 0.12rem 0 0;
+  }
+
+  .practice-timer__duration,
+  .metronome__bpm {
+    color: #a7b8a9;
+    display: grid;
+    flex: 0 0 6.6rem;
+    font-size: 0.76rem;
+    font-weight: 780;
+    gap: 0.24rem;
+    text-transform: uppercase;
+  }
+
+  .practice-timer__duration input,
+  .metronome__bpm input {
+    background: rgba(6, 12, 9, 0.72);
+    border: 1px solid rgba(214, 237, 218, 0.18);
+    box-sizing: border-box;
+    color: #f2f4ea;
+    width: 100%;
+  }
+
+  .practice-timer__duration input:disabled {
+    color: #92a296;
+    opacity: 0.75;
+  }
+
+  .practice-timer__display {
+    color: #fff;
+    font-size: clamp(2.6rem, 9vw, 4.4rem);
+    font-variant-numeric: tabular-nums;
+    font-weight: 850;
+    letter-spacing: 0;
+    line-height: 1;
+    margin: 0.9rem 0;
+  }
+
+  .practice-timer__actions .primary-action {
+    flex: 1;
+  }
+
+  .metronome__actions {
+    margin-top: 0.9rem;
+  }
+
+  .metronome__actions .primary-action {
+    flex: 0 1 12rem;
+  }
+
+  .metronome__status {
+    color: #a7b8a9;
+    font-size: 0.9rem;
+    font-weight: 760;
   }
 
   .practice-card {
