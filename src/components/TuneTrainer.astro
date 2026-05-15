@@ -5,12 +5,29 @@
     <p class="trainer-copy__note">Unrated and shaky tunes surface more often. Good tunes still loop back occasionally.</p>
   </div>
 
-  <div class="trainer-board">
+  <div class="trainer-queue">
     <div class="trainer-board__top">
       <button id="tune-trainer-pick" class="primary-action" type="button">Get Tune</button>
       <button id="tune-trainer-reset" class="ghost-action" type="button">Reset</button>
     </div>
 
+    <div id="tune-trainer-card" class="practice-card" hidden>
+      <span id="tune-trainer-label" class="practice-card__label">Next up</span>
+      <a id="tune-trainer-link" href="" target="_blank" rel="noopener noreferrer"></a>
+      <div class="tune-trainer__rating" aria-label="Rate this tune">
+        <button type="button" data-rating="1">1 Good</button>
+        <button type="button" data-rating="2">2 OK</button>
+        <button type="button" data-rating="3">3 Needs Work</button>
+      </div>
+    </div>
+
+    <div id="tune-trainer-empty" class="practice-card practice-card--empty">
+      <span class="practice-card__label">Ready</span>
+      <p>Press Get Tune to pull from the deck.</p>
+    </div>
+  </div>
+
+  <div class="trainer-tools">
     <div class="practice-timer" aria-labelledby="practice-timer-title">
       <div class="practice-timer__header">
         <div>
@@ -44,21 +61,6 @@
         <button id="metronome-start" class="primary-action" type="button">Start</button>
         <span id="metronome-status" class="metronome__status">100 BPM</span>
       </div>
-    </div>
-
-    <div id="tune-trainer-card" class="practice-card" hidden>
-      <span id="tune-trainer-label" class="practice-card__label">Next up</span>
-      <a id="tune-trainer-link" href=""></a>
-      <div class="tune-trainer__rating" aria-label="Rate this tune">
-        <button type="button" data-rating="1">1 Good</button>
-        <button type="button" data-rating="2">2 OK</button>
-        <button type="button" data-rating="3">3 Needs Work</button>
-      </div>
-    </div>
-
-    <div id="tune-trainer-empty" class="practice-card practice-card--empty">
-      <span class="practice-card__label">Ready</span>
-      <p>Press Get Tune to pull from the deck.</p>
     </div>
   </div>
 
@@ -391,7 +393,8 @@
     max-width: 34rem;
   }
 
-  .trainer-board {
+  .trainer-queue,
+  .trainer-tools {
     display: grid;
     gap: 0.8rem;
   }
@@ -641,6 +644,16 @@
     .trainer-shell {
       grid-template-columns: minmax(0, 0.95fr) minmax(22rem, 1.15fr);
       padding: 1.25rem;
+    }
+
+    .trainer-queue {
+      align-self: start;
+      grid-column: 1;
+    }
+
+    .trainer-tools {
+      grid-column: 2;
+      grid-row: 1 / span 2;
     }
 
     .trainer-metrics,

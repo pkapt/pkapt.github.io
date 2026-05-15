@@ -65,7 +65,7 @@ function resourceKind(href: string) {
     {tunes.map((tune) => (
       <article class="tune-card" data-tune-card data-name={tune.name} data-kind={resourceKind(tune.href)}>
         <div>
-          <a href={tune.href}>{tune.name}</a>
+          <a href={tune.href} target="_blank" rel="noopener noreferrer">{tune.name}</a>
           <p>{resourceLabel(tune.href)}</p>
         </div>
         <span class="rating-pill" data-rating-pill>unrated</span>
