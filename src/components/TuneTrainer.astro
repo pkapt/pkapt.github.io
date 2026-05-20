@@ -43,6 +43,18 @@
     </div>
   </div>
 
+  <div id="tune-trainer-preview" class="tune-preview" hidden>
+    <div class="tune-preview__header">
+      <span class="practice-card__label">Chart Preview</span>
+      <a id="tune-trainer-preview-link" href="" target="_blank" rel="noopener noreferrer">Open full size</a>
+    </div>
+    <iframe id="tune-trainer-preview-pdf" class="tune-preview__pdf" title="Tune chart preview" hidden></iframe>
+    <img id="tune-trainer-preview-image" class="tune-preview__image" alt="" hidden />
+    <p id="tune-trainer-preview-fallback" class="tune-preview__fallback" hidden>
+      This tune can’t be embedded here. Use the tune link above to open it.
+    </p>
+  </div>
+
   <div class="trainer-metrics" aria-label="Rating progress">
     <div class="metric metric--good">
       <span id="metric-good">0</span>
@@ -86,6 +98,11 @@
   const emptyCard = document.getElementById("tune-trainer-empty");
   const tuneLink = document.getElementById("tune-trainer-link") as HTMLAnchorElement | null;
   const deprioritizeInput = document.getElementById("tune-trainer-deprioritize") as HTMLInputElement | null;
+  const preview = document.getElementById("tune-trainer-preview");
+  const previewLink = document.getElementById("tune-trainer-preview-link") as HTMLAnchorElement | null;
+  const previewPdf = document.getElementById("tune-trainer-preview-pdf") as HTMLIFrameElement | null;
+  const previewImage = document.getElementById("tune-trainer-preview-image") as HTMLImageElement | null;
+  const previewFallback = document.getElementById("tune-trainer-preview-fallback");
   const status = document.getElementById("tune-trainer-status");
   const label = document.getElementById("tune-trainer-label");
   const activeCount = document.getElementById("tune-trainer-active-count");
@@ -289,6 +306,70 @@
     if (activeCount) activeCount.textContent = String(activeBatch.length);
   }
 
+  function getPreviewKind(href: string) {
+    try {
+      const url = new URL(href, window.location.href);
+      const pathname = url.pathname.toLowerCase();
+      if (pathname.endsWith(".pdf")) return "pdf";
+      if (pathname.match(/\.(jpg|jpeg|png|gif|webp)$/)) return "image";
+    } catch {
+      return "fallback";
+    }
+
+    return "fallback";
+  }
+
+  function clearPreview() {
+    if (preview) preview.hidden = true;
+    if (previewLink) previewLink.href = "";
+    if (previewPdf) {
+      previewPdf.hidden = true;
+      previewPdf.src = "";
+    }
+    if (previewImage) {
+      previewImage.hidden = true;
+      previewImage.src = "";
+      previewImage.alt = "";
+    }
+    if (previewFallback) previewFallback.hidden = true;
+  }
+
+  function updatePreview(tune: { name: string; href: string } | null) {
+    if (!tune || !preview) {
+      clearPreview();
+      return;
+    }
+
+    const kind = getPreviewKind(tune.href);
+    preview.hidden = false;
+    if (previewLink) previewLink.href = tune.href;
+    if (previewPdf) {
+      previewPdf.hidden = true;
+      previewPdf.src = "";
+    }
+    if (previewImage) {
+      previewImage.hidden = true;
+      previewImage.src = "";
+      previewImage.alt = "";
+    }
+    if (previewFallback) previewFallback.hidden = true;
+
+    if (kind === "pdf" && previewPdf) {
+      previewPdf.src = tune.href;
+      previewPdf.hidden = false;
+      return;
+    }
+
+    if (kind === "image" && previewImage) {
+      previewImage.src = tune.href;
+      previewImage.alt = `${tune.name} chart preview`;
+      previewImage.hidden = false;
+      return;
+    }
+
+    if (previewFallback) previewFallback.hidden = false;
+  }
+
   function renderActiveBatchList() {
     if (!activeList) return;
 
@@ -371,6 +452,7 @@
     emptyCard.hidden = true;
     syncDeprioritizeToggle();
     renderActiveBatchList();
+    updatePreview(tune);
   }
 
   pickButton?.addEventListener("click", () => {
@@ -415,6 +497,7 @@
     updateActiveBatchCount();
     syncDeprioritizeToggle();
     renderActiveBatchList();
+    clearPreview();
   });
 
   deprioritizeInput?.addEventListener("change", () => {
@@ -553,6 +636,52 @@
 
   .active-tunes__list li {
     min-width: 0;
+  }
+
+  .tune-preview {
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(214, 237, 218, 0.12);
+    border-radius: 8px;
+    display: grid;
+    gap: 0.8rem;
+    padding: 0.9rem;
+  }
+
+  .tune-preview__header {
+    align-items: center;
+    display: flex;
+    gap: 0.8rem;
+    justify-content: space-between;
+  }
+
+  .tune-preview__header a {
+    color: #b8eec9;
+    flex: 0 0 auto;
+    font-size: 0.86rem;
+    font-weight: 700;
+    margin: 0;
+    text-decoration: none;
+  }
+
+  .tune-preview__pdf {
+    background: #fff;
+    block-size: min(70vh, 900px);
+    border: 0;
+    border-radius: 6px;
+    inline-size: 100%;
+  }
+
+  .tune-preview__image {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    inline-size: 100%;
+    max-block-size: 70vh;
+    object-fit: contain;
+  }
+
+  .tune-preview__fallback {
+    color: #a7b8a9;
+    margin: 0;
   }
 
   .active-tunes__link,
