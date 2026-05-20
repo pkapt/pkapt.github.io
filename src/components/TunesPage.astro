@@ -1,4 +1,5 @@
 ---
+import PracticeTools from "./PracticeTools.astro";
 import TuneTrainer from "./TuneTrainer.astro";
 import { backingTracks, transcriptions, tunes } from "../data/tunes";
 
@@ -42,13 +43,26 @@ function resourceKind(href: string) {
 </section>
 
 <TuneTrainer />
+<PracticeTools />
 
-<section class="library" aria-labelledby="tunes-heading">
+<section id="tune-library" class="library" aria-labelledby="tunes-heading" data-collapsed="true">
   <div class="library__top">
     <div>
       <p class="eyebrow">Repertoire</p>
       <h2 id="tunes-heading">Tune Library</h2>
     </div>
+    <button
+      id="library-toggle"
+      class="library-toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="library-content"
+    >
+      Show Library
+    </button>
+  </div>
+
+  <div id="library-content" class="library__content">
     <div class="library__tools">
       <input id="tune-search" type="search" placeholder="Search tunes" aria-label="Search tunes" />
       <div class="filter-tabs" aria-label="Filter tunes">
@@ -59,20 +73,20 @@ function resourceKind(href: string) {
         <button type="button" data-filter="1">Good</button>
       </div>
     </div>
-  </div>
 
-  <div id="tunes-list" class="tune-grid">
-    {tunes.map((tune) => (
-      <article class="tune-card" data-tune-card data-name={tune.name} data-kind={resourceKind(tune.href)}>
-        <div>
-          <a href={tune.href} target="_blank" rel="noopener noreferrer">{tune.name}</a>
-          <p>{resourceLabel(tune.href)}</p>
-        </div>
-        <span class="rating-pill" data-rating-pill>unrated</span>
-      </article>
-    ))}
+    <div id="tunes-list" class="tune-grid">
+      {tunes.map((tune) => (
+        <article class="tune-card" data-tune-card data-name={tune.name} data-kind={resourceKind(tune.href)}>
+          <div>
+            <a href={tune.href} target="_blank" rel="noopener noreferrer">{tune.name}</a>
+            <p>{resourceLabel(tune.href)}</p>
+          </div>
+          <span class="rating-pill" data-rating-pill>unrated</span>
+        </article>
+      ))}
+    </div>
+    <p id="empty-library-message" class="empty-message" hidden>No tunes match that filter.</p>
   </div>
-  <p id="empty-library-message" class="empty-message" hidden>No tunes match that filter.</p>
 </section>
 
 <section class="utility-grid" aria-label="Practice resources">
@@ -102,13 +116,27 @@ function resourceKind(href: string) {
   </article>
 </section>
 
+<div class="page-reset">
+  <button id="tune-trainer-reset" class="page-reset__button" type="button">Reset Practice Data</button>
+</div>
+
 <script>
   const storageKey = "pkapt-tune-trainer-ratings-v1";
+  const library = document.getElementById("tune-library");
   const searchInput = document.getElementById("tune-search") as HTMLInputElement | null;
+  const libraryToggle = document.getElementById("library-toggle") as HTMLButtonElement | null;
   const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-filter]"));
   const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-tune-card]"));
   const emptyMessage = document.getElementById("empty-library-message");
   let activeFilter = "all";
+
+  function setLibraryOpen(isOpen: boolean) {
+    if (library) library.dataset.collapsed = isOpen ? "false" : "true";
+    if (libraryToggle) {
+      libraryToggle.setAttribute("aria-expanded", String(isOpen));
+      libraryToggle.textContent = isOpen ? "Hide Library" : "Show Library";
+    }
+  }
 
   function loadRatings(): Record<string, number> {
     try {
@@ -162,7 +190,12 @@ function resourceKind(href: string) {
   });
 
   searchInput?.addEventListener("input", syncLibrary);
+  libraryToggle?.addEventListener("click", () => {
+    const isOpen = libraryToggle.getAttribute("aria-expanded") === "true";
+    setLibraryOpen(!isOpen);
+  });
   window.addEventListener("tune-ratings-changed", syncLibrary);
+  setLibraryOpen(false);
   syncLibrary();
 </script>
 
@@ -213,6 +246,29 @@ function resourceKind(href: string) {
     gap: 1rem;
     grid-template-columns: 1fr;
     margin: 1rem 0;
+  }
+
+  .page-reset {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 1rem;
+  }
+
+  .page-reset__button {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(214, 237, 218, 0.16);
+    border-radius: 7px;
+    color: #d4e3d2;
+    cursor: pointer;
+    font-weight: 800;
+    min-height: 2.7rem;
+    min-width: 10rem;
+    padding: 0.55rem 0.9rem;
+  }
+
+  .page-reset__button:hover {
+    background: rgba(136, 219, 165, 0.1);
+    border-color: rgba(30, 104, 77, 0.42);
   }
 
   .panel,
@@ -295,6 +351,31 @@ function resourceKind(href: string) {
     display: grid;
     gap: 0.7rem;
     width: 100%;
+  }
+
+  .library__content {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .library[data-collapsed="true"] .library__content {
+    display: none;
+  }
+
+  .library-toggle {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(214, 237, 218, 0.14);
+    border-radius: 999px;
+    color: #d4e3d2;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 800;
+    padding: 0.5rem 0.8rem;
+  }
+
+  .library-toggle:hover {
+    background: rgba(136, 219, 165, 0.1);
+    border-color: rgba(30, 104, 77, 0.42);
   }
 
   #tune-search {

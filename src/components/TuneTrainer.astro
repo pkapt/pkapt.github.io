@@ -1,65 +1,44 @@
 <section class="trainer-shell" aria-labelledby="tune-trainer-title">
-  <div class="trainer-copy">
-    <p class="eyebrow">Spaced-ish repetition</p>
-    <h2 id="tune-trainer-title">Practice Queue</h2>
-    <p class="trainer-copy__note">Unrated and shaky tunes surface more often. Good tunes still loop back occasionally.</p>
-  </div>
-
   <div class="trainer-queue">
-    <div class="trainer-board__top">
-      <button id="tune-trainer-pick" class="primary-action" type="button">Get Tune</button>
-      <button id="tune-trainer-reset" class="ghost-action" type="button">Reset</button>
-    </div>
-
-    <div id="tune-trainer-card" class="practice-card" hidden>
-      <span id="tune-trainer-label" class="practice-card__label">Next up</span>
-      <a id="tune-trainer-link" href="" target="_blank" rel="noopener noreferrer"></a>
-      <div class="tune-trainer__rating" aria-label="Rate this tune">
-        <button type="button" data-rating="1">1 Good</button>
-        <button type="button" data-rating="2">2 OK</button>
-        <button type="button" data-rating="3">3 Needs Work</button>
-      </div>
-    </div>
-
-    <div id="tune-trainer-empty" class="practice-card practice-card--empty">
-      <span class="practice-card__label">Ready</span>
-      <p>Press Get Tune to pull from the deck.</p>
-    </div>
-  </div>
-
-  <div class="trainer-tools">
-    <div class="practice-timer" aria-labelledby="practice-timer-title">
-      <div class="practice-timer__header">
-        <div>
-          <span class="practice-card__label">Timer</span>
-          <h3 id="practice-timer-title">Practice Block</h3>
+    <div class="trainer-queue__main">
+      <div class="trainer-queue__left">
+        <div class="trainer-board__top">
+          <div class="trainer-board__actions">
+            <button id="tune-trainer-pick" class="primary-action" type="button">Get Tune</button>
+            <div class="active-batch" aria-live="polite">
+              <span class="active-batch__label">Active</span>
+              <strong id="tune-trainer-active-count">4</strong>
+            </div>
+          </div>
         </div>
-        <label class="practice-timer__duration">
-          <span>Minutes</span>
-          <input id="practice-timer-minutes" type="number" min="1" max="180" step="1" value="20" />
-        </label>
-      </div>
-      <div id="practice-timer-display" class="practice-timer__display" aria-live="polite">20:00</div>
-      <div class="practice-timer__actions">
-        <button id="practice-timer-start" class="primary-action" type="button">Start</button>
-        <button id="practice-timer-reset" class="ghost-action" type="button">Reset</button>
-      </div>
-    </div>
 
-    <div class="metronome" aria-labelledby="metronome-title">
-      <div class="metronome__header">
-        <div>
-          <span class="practice-card__label">Metronome</span>
-          <h3 id="metronome-title">Tempo</h3>
+        <div id="tune-trainer-card" class="practice-card" hidden>
+          <span id="tune-trainer-label" class="practice-card__label">Next up</span>
+          <div class="practice-card__header">
+            <a id="tune-trainer-link" href="" target="_blank" rel="noopener noreferrer"></a>
+            <label class="practice-card__toggle">
+              <input id="tune-trainer-deprioritize" type="checkbox" />
+              <span>Low prio</span>
+            </label>
+          </div>
+          <div class="tune-trainer__rating" aria-label="Rate this tune">
+            <button type="button" data-rating="1">1 Good</button>
+            <button type="button" data-rating="2">2 OK</button>
+            <button type="button" data-rating="3">3 Needs Work</button>
+          </div>
         </div>
-        <label class="metronome__bpm">
-          <span>BPM</span>
-          <input id="metronome-bpm" type="number" min="30" max="260" step="1" value="100" />
-        </label>
+
+        <div id="tune-trainer-empty" class="practice-card practice-card--empty">
+          <span class="practice-card__label">Ready</span>
+          <p>Press Get Tune to pull from the deck.</p>
+        </div>
       </div>
-      <div class="metronome__actions">
-        <button id="metronome-start" class="primary-action" type="button">Start</button>
-        <span id="metronome-status" class="metronome__status">100 BPM</span>
+
+      <div class="trainer-queue__right">
+        <div class="active-tunes">
+          <span class="practice-card__label">Active Tunes</span>
+          <ul id="tune-trainer-active-list" class="active-tunes__list" aria-live="polite"></ul>
+        </div>
       </div>
     </div>
   </div>
@@ -93,6 +72,9 @@
 
 <script>
   const storageKey = "pkapt-tune-trainer-ratings-v1";
+  const activeBatchStorageKey = "pkapt-tune-trainer-active-batch-v1";
+  const deprioritizedStorageKey = "pkapt-tune-trainer-deprioritized-v1";
+  const activeBatchSize = 4;
   const tunes = Array.from(document.querySelectorAll<HTMLAnchorElement>("#tunes-list a")).map((link) => ({
     name: link.textContent?.trim() ?? "",
     href: link.href
@@ -103,8 +85,11 @@
   const card = document.getElementById("tune-trainer-card");
   const emptyCard = document.getElementById("tune-trainer-empty");
   const tuneLink = document.getElementById("tune-trainer-link") as HTMLAnchorElement | null;
+  const deprioritizeInput = document.getElementById("tune-trainer-deprioritize") as HTMLInputElement | null;
   const status = document.getElementById("tune-trainer-status");
   const label = document.getElementById("tune-trainer-label");
+  const activeCount = document.getElementById("tune-trainer-active-count");
+  const activeList = document.getElementById("tune-trainer-active-list");
   const metricGood = document.getElementById("metric-good");
   const metricOk = document.getElementById("metric-ok");
   const metricWork = document.getElementById("metric-work");
@@ -112,18 +97,9 @@
   const progressGood = document.getElementById("progress-good");
   const progressOk = document.getElementById("progress-ok");
   const progressWork = document.getElementById("progress-work");
-  const timerMinutesInput = document.getElementById("practice-timer-minutes") as HTMLInputElement | null;
-  const timerDisplay = document.getElementById("practice-timer-display");
-  const timerStartButton = document.getElementById("practice-timer-start");
-  const timerResetButton = document.getElementById("practice-timer-reset");
-  const metronomeBpmInput = document.getElementById("metronome-bpm") as HTMLInputElement | null;
-  const metronomeStartButton = document.getElementById("metronome-start");
-  const metronomeStatus = document.getElementById("metronome-status");
   let currentTune: { name: string; href: string } | null = null;
-  let timerSeconds = 20 * 60;
-  let timerId: number | null = null;
-  let audioContext: AudioContext | null = null;
-  let metronomeId: number | null = null;
+  let activeBatch = loadActiveBatch();
+  let deprioritizedTunes = loadDeprioritizedTunes();
 
   function loadRatings(): Record<string, number> {
     try {
@@ -138,6 +114,67 @@
     window.dispatchEvent(new CustomEvent("tune-ratings-changed"));
   }
 
+  function loadDeprioritizedTunes() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(deprioritizedStorageKey) ?? "[]");
+      const knownTuneNames = new Set(tunes.map((tune) => tune.name));
+      if (!Array.isArray(saved)) return [];
+
+      return saved.filter((name, index) =>
+        typeof name === "string" &&
+        knownTuneNames.has(name) &&
+        saved.indexOf(name) === index
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  function syncDeprioritizeToggle() {
+    if (!deprioritizeInput) return;
+    deprioritizeInput.checked = currentTune ? deprioritizedTunes.includes(currentTune.name) : false;
+    deprioritizeInput.disabled = !currentTune;
+  }
+
+  function saveDeprioritizedTunes(names: string[]) {
+    deprioritizedTunes = names;
+    localStorage.setItem(deprioritizedStorageKey, JSON.stringify(names));
+    syncDeprioritizeToggle();
+    renderActiveBatchList();
+  }
+
+  function pruneDeprioritizedTunes() {
+    const nextNames = deprioritizedTunes.filter((name) => activeBatch.includes(name));
+    if (nextNames.length === deprioritizedTunes.length) return;
+    deprioritizedTunes = nextNames;
+    localStorage.setItem(deprioritizedStorageKey, JSON.stringify(nextNames));
+  }
+
+  function loadActiveBatch() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(activeBatchStorageKey) ?? "[]");
+      const knownTuneNames = new Set(tunes.map((tune) => tune.name));
+      if (!Array.isArray(saved)) return [];
+
+      return saved.filter((name, index) =>
+        typeof name === "string" &&
+        knownTuneNames.has(name) &&
+        saved.indexOf(name) === index
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  function saveActiveBatch(batch: string[]) {
+    activeBatch = batch;
+    localStorage.setItem(activeBatchStorageKey, JSON.stringify(batch));
+    pruneDeprioritizedTunes();
+    updateActiveBatchCount();
+    syncDeprioritizeToggle();
+    renderActiveBatchList();
+  }
+
   function getWeight(tune: { name: string }, ratings: Record<string, number>) {
     const rating = Number(ratings[tune.name]);
     if (rating === 1) return 1;
@@ -146,12 +183,17 @@
     return 9;
   }
 
-  function pickWeightedTune() {
+  function pickWeightedTune(excludedNames = new Set<string>()) {
     const ratings = loadRatings();
-    const weightedTunes = tunes.map((tune) => ({
-      tune,
-      weight: getWeight(tune, ratings)
-    }));
+    const weightedTunes = tunes
+      .filter((tune) => !excludedNames.has(tune.name))
+      .map((tune) => ({
+        tune,
+        weight: getWeight(tune, ratings)
+      }));
+
+    if (!weightedTunes.length) return null;
+
     const totalWeight = weightedTunes.reduce((sum, item) => sum + item.weight, 0);
     let target = Math.random() * totalWeight;
 
@@ -162,7 +204,120 @@
       }
     }
 
-    return tunes[tunes.length - 1];
+    return weightedTunes[weightedTunes.length - 1]?.tune ?? null;
+  }
+
+  function pickWeightedFromTunes(availableTunes: { name: string; href: string }[]) {
+    const ratings = loadRatings();
+    const weightedTunes = availableTunes.map((tune) => ({
+      tune,
+      weight: getWeight(tune, ratings)
+    }));
+
+    if (!weightedTunes.length) return null;
+
+    const totalWeight = weightedTunes.reduce((sum, item) => sum + item.weight, 0);
+    let target = Math.random() * totalWeight;
+
+    for (const item of weightedTunes) {
+      target -= item.weight;
+      if (target <= 0) {
+        return item.tune;
+      }
+    }
+
+    return weightedTunes[weightedTunes.length - 1]?.tune ?? null;
+  }
+
+  function buildActiveBatch() {
+    const nextBatch: string[] = [];
+    const targetSize = Math.min(activeBatchSize, tunes.length);
+
+    while (nextBatch.length < targetSize) {
+      const lowPrioLocked = !areRegularTunesCleared();
+      const excludedNames = new Set([
+        ...nextBatch,
+        ...(lowPrioLocked ? deprioritizedTunes : [])
+      ]);
+      const tune = pickWeightedTune(excludedNames);
+      if (!tune) break;
+      nextBatch.push(tune.name);
+    }
+
+    return nextBatch;
+  }
+
+  function areRegularTunesCleared() {
+    const ratings = loadRatings();
+
+    return tunes
+      .filter((tune) => !deprioritizedTunes.includes(tune.name))
+      .every((tune) => {
+        const rating = Number(ratings[tune.name]);
+        return rating === 1 || rating === 2;
+      });
+  }
+
+  function topUpActiveBatch(batch: string[]) {
+    const nextBatch = [...batch];
+    const targetSize = Math.min(activeBatchSize, tunes.length);
+    const lowPrioLocked = !areRegularTunesCleared();
+
+    while (nextBatch.length < targetSize) {
+      const excludedNames = new Set([
+        ...nextBatch,
+        ...(lowPrioLocked ? deprioritizedTunes : [])
+      ]);
+      const tune = pickWeightedTune(excludedNames);
+      if (!tune) break;
+      nextBatch.push(tune.name);
+    }
+
+    return nextBatch;
+  }
+
+  function ensureActiveBatch() {
+    if (activeBatch.length > 0) {
+      updateActiveBatchCount();
+      return;
+    }
+
+    saveActiveBatch(buildActiveBatch());
+  }
+
+  function updateActiveBatchCount() {
+    if (activeCount) activeCount.textContent = String(activeBatch.length);
+  }
+
+  function renderActiveBatchList() {
+    if (!activeList) return;
+
+    const items = activeBatch
+      .map((name) => tunes.find((tune) => tune.name === name))
+      .filter((tune): tune is { name: string; href: string } => Boolean(tune))
+      .map((tune) => {
+        const currentClass = currentTune?.name === tune.name ? " is-current" : "";
+        const deprioritizedClass = deprioritizedTunes.includes(tune.name) ? " is-deprioritized" : "";
+        const badge = deprioritizedTunes.includes(tune.name)
+          ? "<span class=\"active-tunes__badge\">Low prio</span>"
+          : "";
+        return `<li><a class="active-tunes__link${currentClass}${deprioritizedClass}" href="${tune.href}" target="_blank" rel="noopener noreferrer"><span>${tune.name}</span>${badge}</a></li>`;
+      });
+
+    activeList.innerHTML = items.length ? items.join("") : "<li class=\"active-tunes__empty\">No active tunes.</li>";
+  }
+
+  function pickFromActiveBatch() {
+    ensureActiveBatch();
+    let activeTunes = tunes.filter((tune) => activeBatch.includes(tune.name));
+    if (!activeTunes.length) return null;
+
+    if (activeTunes.length > 1 && currentTune) {
+      const nextOptions = activeTunes.filter((tune) => tune.name !== currentTune.name);
+      if (nextOptions.length) activeTunes = nextOptions;
+    }
+
+    return pickWeightedFromTunes(activeTunes);
   }
 
   function updateStatus() {
@@ -193,7 +348,10 @@
     if (progressWork) progressWork.style.width = `${workPct}%`;
 
     if (status) {
-      status.textContent = `${rated} of ${tunes.length} rated. The deck is weighted toward unrated and needs-work tunes.`;
+      const batchNote = activeBatch.length
+        ? `${activeBatch.length} tune${activeBatch.length === 1 ? "" : "s"} active in this batch.`
+        : "A new batch will start on your next tune.";
+      status.textContent = `${rated} of ${tunes.length} rated. The deck is weighted toward unrated and needs-work tunes. ${batchNote}`;
     }
 
     window.dispatchEvent(new CustomEvent("tune-ratings-changed"));
@@ -211,121 +369,12 @@
     if (label) label.textContent = rating ? `Current rating: ${rating}` : "Unrated";
     card.hidden = false;
     emptyCard.hidden = true;
-  }
-
-  function formatTime(totalSeconds: number) {
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${String(seconds).padStart(2, "0")}`;
-  }
-
-  function getSelectedSeconds() {
-    const minutes = Number(timerMinutesInput?.value);
-    const boundedMinutes = Math.min(Math.max(Number.isFinite(minutes) ? minutes : 20, 1), 180);
-    if (timerMinutesInput) timerMinutesInput.value = String(boundedMinutes);
-    return Math.round(boundedMinutes * 60);
-  }
-
-  function updateTimerDisplay() {
-    if (timerDisplay) timerDisplay.textContent = formatTime(timerSeconds);
-  }
-
-  function stopTimer() {
-    if (timerId === null) return;
-    window.clearInterval(timerId);
-    timerId = null;
-    if (timerStartButton) timerStartButton.textContent = "Start";
-    if (timerMinutesInput) timerMinutesInput.disabled = false;
-  }
-
-  function resetTimer() {
-    stopTimer();
-    timerSeconds = getSelectedSeconds();
-    updateTimerDisplay();
-  }
-
-  function startTimer() {
-    if (timerId !== null) {
-      stopTimer();
-      return;
-    }
-
-    if (timerSeconds <= 0) {
-      timerSeconds = getSelectedSeconds();
-      updateTimerDisplay();
-    }
-
-    if (timerStartButton) timerStartButton.textContent = "Pause";
-    if (timerMinutesInput) timerMinutesInput.disabled = true;
-    timerId = window.setInterval(() => {
-      timerSeconds -= 1;
-      updateTimerDisplay();
-
-      if (timerSeconds <= 0) {
-        timerSeconds = 0;
-        updateTimerDisplay();
-        stopTimer();
-      }
-    }, 1000);
-  }
-
-  function getSelectedBpm() {
-    const bpm = Number(metronomeBpmInput?.value);
-    const boundedBpm = Math.min(Math.max(Number.isFinite(bpm) ? bpm : 100, 30), 260);
-    if (metronomeBpmInput) metronomeBpmInput.value = String(boundedBpm);
-    return boundedBpm;
-  }
-
-  function updateMetronomeStatus() {
-    const bpm = getSelectedBpm();
-    if (metronomeStatus) metronomeStatus.textContent = metronomeId === null ? `${bpm} BPM` : `Playing ${bpm} BPM`;
-  }
-
-  function playMetronomeClick() {
-    audioContext ??= new AudioContext();
-    const startTime = audioContext.currentTime;
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-
-    oscillator.type = "square";
-    oscillator.frequency.setValueAtTime(1200, startTime);
-    gain.gain.setValueAtTime(0.0001, startTime);
-    gain.gain.exponentialRampToValueAtTime(0.35, startTime + 0.002);
-    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.045);
-
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start(startTime);
-    oscillator.stop(startTime + 0.05);
-  }
-
-  function stopMetronome() {
-    if (metronomeId !== null) {
-      window.clearInterval(metronomeId);
-      metronomeId = null;
-    }
-
-    if (metronomeStartButton) metronomeStartButton.textContent = "Start";
-    updateMetronomeStatus();
-  }
-
-  function startMetronome() {
-    if (metronomeId !== null) {
-      stopMetronome();
-      return;
-    }
-
-    const bpm = getSelectedBpm();
-    const intervalMs = Math.round(60000 / bpm);
-    playMetronomeClick();
-    metronomeId = window.setInterval(playMetronomeClick, intervalMs);
-
-    if (metronomeStartButton) metronomeStartButton.textContent = "Stop";
-    updateMetronomeStatus();
+    syncDeprioritizeToggle();
+    renderActiveBatchList();
   }
 
   pickButton?.addEventListener("click", () => {
-    const tune = pickWeightedTune();
+    const tune = pickFromActiveBatch();
     if (tune) showTune(tune);
   });
 
@@ -337,33 +386,53 @@
     const ratings = loadRatings();
     ratings[currentTune.name] = Number(rating);
     saveRatings(ratings);
+
+    if (Number(rating) <= 2) {
+      saveActiveBatch(activeBatch.filter((name) => name !== currentTune?.name));
+    } else {
+      updateActiveBatchCount();
+      syncDeprioritizeToggle();
+      renderActiveBatchList();
+    }
+
     updateStatus();
 
-    const tune = pickWeightedTune();
+    const tune = pickFromActiveBatch();
     if (tune) showTune(tune);
   });
 
   resetButton?.addEventListener("click", () => {
     if (!window.confirm("Clear all saved tune ratings in this browser?")) return;
     localStorage.removeItem(storageKey);
+    localStorage.removeItem(activeBatchStorageKey);
+    localStorage.removeItem(deprioritizedStorageKey);
     if (card) card.hidden = true;
     if (emptyCard) emptyCard.hidden = false;
     currentTune = null;
+    activeBatch = [];
+    deprioritizedTunes = [];
     updateStatus();
+    updateActiveBatchCount();
+    syncDeprioritizeToggle();
+    renderActiveBatchList();
   });
 
-  timerMinutesInput?.addEventListener("change", resetTimer);
-  timerStartButton?.addEventListener("click", startTimer);
-  timerResetButton?.addEventListener("click", resetTimer);
-  metronomeBpmInput?.addEventListener("change", () => {
-    const wasPlaying = metronomeId !== null;
-    if (wasPlaying) stopMetronome();
-    updateMetronomeStatus();
-    if (wasPlaying) startMetronome();
+  deprioritizeInput?.addEventListener("change", () => {
+    if (!currentTune) return;
+
+    if (deprioritizeInput.checked) {
+      if (!deprioritizedTunes.includes(currentTune.name)) {
+        saveDeprioritizedTunes([...deprioritizedTunes, currentTune.name]);
+        saveActiveBatch(topUpActiveBatch(activeBatch.filter((name) => name !== currentTune.name)));
+      }
+      return;
+    }
+
+    saveDeprioritizedTunes(deprioritizedTunes.filter((name) => name !== currentTune.name));
   });
-  metronomeStartButton?.addEventListener("click", startMetronome);
-  updateTimerDisplay();
-  updateMetronomeStatus();
+
+  ensureActiveBatch();
+  syncDeprioritizeToggle();
   updateStatus();
 </script>
 
@@ -382,33 +451,31 @@
     padding: 1rem;
   }
 
-  .trainer-copy h2 {
-    font-size: clamp(1.65rem, 3vw, 2.5rem);
-    line-height: 1.08;
+  .trainer-queue {
+    display: grid;
+    gap: 0.8rem;
   }
 
-  .trainer-copy__note {
-    color: #a7b8a9;
-    margin: 0.65rem 0 0;
-    max-width: 34rem;
-  }
-
-  .trainer-queue,
-  .trainer-tools {
+  .trainer-queue__main,
+  .trainer-queue__left,
+  .trainer-queue__right {
     display: grid;
     gap: 0.8rem;
   }
 
   .trainer-board__top {
+    display: grid;
+  }
+
+  .trainer-board__actions {
     display: flex;
+    flex: 1;
     gap: 0.55rem;
   }
 
   .primary-action,
   .ghost-action,
-  .tune-trainer__rating button,
-  .practice-timer__duration input,
-  .metronome__bpm input {
+  .tune-trainer__rating button {
     border-radius: 7px;
     font-weight: 800;
     min-height: 2.7rem;
@@ -428,94 +495,35 @@
     flex: 1;
   }
 
+  .active-batch {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.065);
+    border: 1px solid rgba(214, 237, 218, 0.12);
+    border-radius: 8px;
+    color: #f2f4ea;
+    display: grid;
+    min-width: 4.6rem;
+    padding: 0.45rem 0.75rem;
+    text-align: center;
+  }
+
+  .active-batch__label {
+    color: #a7b8a9;
+    font-size: 0.7rem;
+    font-weight: 780;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .active-batch strong {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
   .ghost-action {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(214, 237, 218, 0.16);
     color: #d4e3d2;
-  }
-
-  .practice-timer {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(214, 237, 218, 0.12);
-    border-radius: 8px;
-    padding: 1rem;
-  }
-
-  .metronome {
-    background: rgba(255, 255, 255, 0.055);
-    border: 1px solid rgba(214, 237, 218, 0.12);
-    border-radius: 8px;
-    padding: 1rem;
-  }
-
-  .practice-timer__header,
-  .practice-timer__actions,
-  .metronome__header,
-  .metronome__actions {
-    align-items: center;
-    display: flex;
-    gap: 0.65rem;
-    justify-content: space-between;
-  }
-
-  .practice-timer h3,
-  .metronome h3 {
-    font-size: 1.05rem;
-    line-height: 1.15;
-    margin: 0.12rem 0 0;
-  }
-
-  .practice-timer__duration,
-  .metronome__bpm {
-    color: #a7b8a9;
-    display: grid;
-    flex: 0 0 6.6rem;
-    font-size: 0.76rem;
-    font-weight: 780;
-    gap: 0.24rem;
-    text-transform: uppercase;
-  }
-
-  .practice-timer__duration input,
-  .metronome__bpm input {
-    background: rgba(6, 12, 9, 0.72);
-    border: 1px solid rgba(214, 237, 218, 0.18);
-    box-sizing: border-box;
-    color: #f2f4ea;
-    width: 100%;
-  }
-
-  .practice-timer__duration input:disabled {
-    color: #92a296;
-    opacity: 0.75;
-  }
-
-  .practice-timer__display {
-    color: #fff;
-    font-size: clamp(2.6rem, 9vw, 4.4rem);
-    font-variant-numeric: tabular-nums;
-    font-weight: 850;
-    letter-spacing: 0;
-    line-height: 1;
-    margin: 0.9rem 0;
-  }
-
-  .practice-timer__actions .primary-action {
-    flex: 1;
-  }
-
-  .metronome__actions {
-    margin-top: 0.9rem;
-  }
-
-  .metronome__actions .primary-action {
-    flex: 0 1 12rem;
-  }
-
-  .metronome__status {
-    color: #a7b8a9;
-    font-size: 0.9rem;
-    font-weight: 760;
   }
 
   .practice-card {
@@ -526,6 +534,66 @@
     color: #fff;
     min-height: 10rem;
     padding: 1rem;
+  }
+
+  .active-tunes {
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(214, 237, 218, 0.12);
+    border-radius: 8px;
+    padding: 0.8rem;
+  }
+
+  .active-tunes__list {
+    display: grid;
+    gap: 0.45rem;
+    list-style: none;
+    margin: 0.55rem 0 0;
+    padding: 0;
+  }
+
+  .active-tunes__list li {
+    min-width: 0;
+  }
+
+  .active-tunes__link,
+  .active-tunes__empty {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(214, 237, 218, 0.1);
+    border-radius: 7px;
+    color: #ecf4e8;
+    display: flex;
+    font-weight: 700;
+    gap: 0.6rem;
+    justify-content: space-between;
+    padding: 0.6rem 0.7rem;
+    text-decoration: none;
+  }
+
+  .active-tunes__link.is-current {
+    background: rgba(136, 219, 165, 0.14);
+    border-color: rgba(136, 219, 165, 0.4);
+    color: #baf1cb;
+  }
+
+  .active-tunes__link.is-deprioritized {
+    opacity: 0.72;
+  }
+
+  .active-tunes__badge {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    color: #d7dfaa;
+    flex: 0 0 auto;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 0.18rem 0.42rem;
+    text-transform: uppercase;
+  }
+
+  .active-tunes__empty {
+    color: #a7b8a9;
+    font-weight: 600;
   }
 
   .practice-card--empty {
@@ -544,12 +612,55 @@
 
   .practice-card a {
     color: #fff;
-    display: inline-block;
+    display: block;
+    flex: 1;
     font-size: clamp(1.6rem, 4vw, 2.6rem);
     font-weight: 850;
     line-height: 1.05;
-    margin: 0.35rem 0 1rem;
+    margin: 0;
+    min-width: 0;
     text-decoration: none;
+  }
+
+  .practice-card__header {
+    align-items: flex-start;
+    display: flex;
+    gap: 0.85rem;
+    justify-content: space-between;
+    margin: 0.35rem 0 1rem;
+  }
+
+  .practice-card__toggle {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(214, 237, 218, 0.14);
+    border-radius: 999px;
+    color: #d4e3d2;
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 0.42rem;
+    padding: 0.34rem 0.62rem;
+    white-space: nowrap;
+  }
+
+  .practice-card__toggle input {
+    accent-color: #8be0ad;
+    block-size: 0.95rem;
+    inline-size: 0.95rem;
+    margin: 0;
+  }
+
+  .practice-card__toggle span {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .practice-card__toggle:has(input:checked) {
+    background: rgba(136, 219, 165, 0.16);
+    border-color: rgba(136, 219, 165, 0.32);
+    color: #e7f5eb;
   }
 
   .practice-card--empty p {
@@ -642,18 +753,13 @@
 
   @media (min-width: 860px) {
     .trainer-shell {
-      grid-template-columns: minmax(0, 0.95fr) minmax(22rem, 1.15fr);
+      grid-template-columns: 1fr;
       padding: 1.25rem;
     }
 
-    .trainer-queue {
-      align-self: start;
-      grid-column: 1;
-    }
-
-    .trainer-tools {
-      grid-column: 2;
-      grid-row: 1 / span 2;
+    .trainer-queue__main {
+      align-items: start;
+      grid-template-columns: minmax(0, 1.05fr) minmax(18rem, 0.95fr);
     }
 
     .trainer-metrics,
@@ -664,6 +770,25 @@
 
     .trainer-metrics {
       grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 520px) {
+    .practice-card__header {
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .trainer-board__top {
+      flex-direction: column;
+    }
+
+    .trainer-board__actions {
+      width: 100%;
+    }
+
+    .active-batch {
+      min-width: 4.25rem;
     }
   }
 </style>
