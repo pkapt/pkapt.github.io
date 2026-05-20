@@ -43,16 +43,29 @@
     </div>
   </div>
 
-  <div id="tune-trainer-preview" class="tune-preview" hidden>
+  <div id="tune-trainer-preview" class="tune-preview" data-collapsed="false" hidden>
     <div class="tune-preview__header">
       <span class="practice-card__label">Chart Preview</span>
-      <a id="tune-trainer-preview-link" href="" target="_blank" rel="noopener noreferrer">Open full size</a>
+      <div class="tune-preview__actions">
+        <button
+          id="tune-trainer-preview-toggle"
+          class="tune-preview__toggle"
+          type="button"
+          aria-expanded="true"
+          aria-controls="tune-trainer-preview-body"
+        >
+          Hide Preview
+        </button>
+        <a id="tune-trainer-preview-link" href="" target="_blank" rel="noopener noreferrer">Open full size</a>
+      </div>
     </div>
-    <iframe id="tune-trainer-preview-pdf" class="tune-preview__pdf" title="Tune chart preview" hidden></iframe>
-    <img id="tune-trainer-preview-image" class="tune-preview__image" alt="" hidden />
-    <p id="tune-trainer-preview-fallback" class="tune-preview__fallback" hidden>
-      This tune can’t be embedded here. Use the tune link above to open it.
-    </p>
+    <div id="tune-trainer-preview-body" class="tune-preview__body">
+      <iframe id="tune-trainer-preview-pdf" class="tune-preview__pdf" title="Tune chart preview" hidden></iframe>
+      <img id="tune-trainer-preview-image" class="tune-preview__image" alt="" hidden />
+      <p id="tune-trainer-preview-fallback" class="tune-preview__fallback" hidden>
+        This tune can’t be embedded here. Use the tune link above to open it.
+      </p>
+    </div>
   </div>
 
   <div class="trainer-metrics" aria-label="Rating progress">
@@ -86,6 +99,7 @@
   const storageKey = "pkapt-tune-trainer-ratings-v1";
   const activeBatchStorageKey = "pkapt-tune-trainer-active-batch-v1";
   const deprioritizedStorageKey = "pkapt-tune-trainer-deprioritized-v1";
+  const practiceHistoryKey = "pkapt-practice-history-v1";
   const activeBatchSize = 4;
   const tunes = Array.from(document.querySelectorAll<HTMLAnchorElement>("#tunes-list a")).map((link) => ({
     name: link.textContent?.trim() ?? "",
@@ -99,6 +113,7 @@
   const tuneLink = document.getElementById("tune-trainer-link") as HTMLAnchorElement | null;
   const deprioritizeInput = document.getElementById("tune-trainer-deprioritize") as HTMLInputElement | null;
   const preview = document.getElementById("tune-trainer-preview");
+  const previewToggle = document.getElementById("tune-trainer-preview-toggle") as HTMLButtonElement | null;
   const previewLink = document.getElementById("tune-trainer-preview-link") as HTMLAnchorElement | null;
   const previewPdf = document.getElementById("tune-trainer-preview-pdf") as HTMLIFrameElement | null;
   const previewImage = document.getElementById("tune-trainer-preview-image") as HTMLImageElement | null;
@@ -321,6 +336,7 @@
 
   function clearPreview() {
     if (preview) preview.hidden = true;
+    setPreviewCollapsed(false);
     if (previewLink) previewLink.href = "";
     if (previewPdf) {
       previewPdf.hidden = true;
@@ -332,6 +348,14 @@
       previewImage.alt = "";
     }
     if (previewFallback) previewFallback.hidden = true;
+  }
+
+  function setPreviewCollapsed(isCollapsed: boolean) {
+    if (preview) preview.dataset.collapsed = isCollapsed ? "true" : "false";
+    if (previewToggle) {
+      previewToggle.setAttribute("aria-expanded", String(!isCollapsed));
+      previewToggle.textContent = isCollapsed ? "Show Preview" : "Hide Preview";
+    }
   }
 
   function updatePreview(tune: { name: string; href: string } | null) {
@@ -357,6 +381,7 @@
     if (kind === "pdf" && previewPdf) {
       previewPdf.src = tune.href;
       previewPdf.hidden = false;
+      setPreviewCollapsed(false);
       return;
     }
 
@@ -364,10 +389,12 @@
       previewImage.src = tune.href;
       previewImage.alt = `${tune.name} chart preview`;
       previewImage.hidden = false;
+      setPreviewCollapsed(false);
       return;
     }
 
     if (previewFallback) previewFallback.hidden = false;
+    setPreviewCollapsed(false);
   }
 
   function renderActiveBatchList() {
@@ -457,6 +484,7 @@
 
   pickButton?.addEventListener("click", () => {
     const tune = pickFromActiveBatch();
+    window.dispatchEvent(new CustomEvent("tune-practiced"));
     if (tune) showTune(tune);
   });
 
@@ -488,6 +516,7 @@
     localStorage.removeItem(storageKey);
     localStorage.removeItem(activeBatchStorageKey);
     localStorage.removeItem(deprioritizedStorageKey);
+    localStorage.removeItem(practiceHistoryKey);
     if (card) card.hidden = true;
     if (emptyCard) emptyCard.hidden = false;
     currentTune = null;
@@ -498,6 +527,7 @@
     syncDeprioritizeToggle();
     renderActiveBatchList();
     clearPreview();
+    window.dispatchEvent(new CustomEvent("practice-history-changed"));
   });
 
   deprioritizeInput?.addEventListener("change", () => {
@@ -512,6 +542,11 @@
     }
 
     saveDeprioritizedTunes(deprioritizedTunes.filter((name) => name !== currentTune.name));
+  });
+
+  previewToggle?.addEventListener("click", () => {
+    const isCollapsed = preview?.dataset.collapsed === "true";
+    setPreviewCollapsed(!isCollapsed);
   });
 
   ensureActiveBatch();
@@ -652,6 +687,31 @@
     display: flex;
     gap: 0.8rem;
     justify-content: space-between;
+  }
+
+  .tune-preview__actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    justify-content: flex-end;
+  }
+
+  .tune-preview__toggle {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(214, 237, 218, 0.14);
+    border-radius: 999px;
+    color: #d4e3d2;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 800;
+    min-height: 2rem;
+    padding: 0.35rem 0.7rem;
+    text-transform: uppercase;
+  }
+
+  .tune-preview[data-collapsed="true"] .tune-preview__body {
+    display: none;
   }
 
   .tune-preview__header a {

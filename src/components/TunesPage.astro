@@ -116,18 +116,43 @@ function resourceKind(href: string) {
   </article>
 </section>
 
+<section class="practice-history" aria-labelledby="practice-history-heading">
+  <div class="panel practice-history__panel">
+    <div class="panel__header">
+      <h2 id="practice-history-heading">Practice History</h2>
+      <span id="practice-history-count">0 days</span>
+    </div>
+    <div class="practice-history__calendar-wrap">
+      <div class="practice-history__grid">
+        <div class="practice-history__corner" aria-hidden="true"></div>
+        <div id="practice-history-months" class="practice-history__months" aria-hidden="true"></div>
+        <div class="practice-history__weekdays" aria-hidden="true">
+          <span>Mon</span>
+          <span>Wed</span>
+          <span>Fri</span>
+        </div>
+        <div id="practice-history-calendar" class="practice-history__calendar" aria-label="Practice calendar"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <div class="page-reset">
   <button id="tune-trainer-reset" class="page-reset__button" type="button">Reset Practice Data</button>
 </div>
 
 <script>
   const storageKey = "pkapt-tune-trainer-ratings-v1";
+  const practiceHistoryKey = "pkapt-practice-history-v1";
   const library = document.getElementById("tune-library");
   const searchInput = document.getElementById("tune-search") as HTMLInputElement | null;
   const libraryToggle = document.getElementById("library-toggle") as HTMLButtonElement | null;
   const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-filter]"));
   const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-tune-card]"));
   const emptyMessage = document.getElementById("empty-library-message");
+  const practiceHistoryCalendar = document.getElementById("practice-history-calendar");
+  const practiceHistoryMonths = document.getElementById("practice-history-months");
+  const practiceHistoryCount = document.getElementById("practice-history-count");
   let activeFilter = "all";
 
   function setLibraryOpen(isOpen: boolean) {
@@ -151,6 +176,90 @@ function resourceKind(href: string) {
     if (rating === 2) return "ok";
     if (rating === 3) return "needs work";
     return "unrated";
+  }
+
+  function formatPracticeDate(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function loadPracticeHistory() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(practiceHistoryKey) ?? "[]");
+      if (!Array.isArray(saved)) return [];
+      return saved.filter((value, index) => typeof value === "string" && saved.indexOf(value) === index).sort();
+    } catch {
+      return [];
+    }
+  }
+
+  function savePracticeHistory(days: string[]) {
+    localStorage.setItem(practiceHistoryKey, JSON.stringify(days));
+    renderPracticeHistory();
+    window.dispatchEvent(new CustomEvent("practice-history-changed"));
+  }
+
+  function markTodayPracticed() {
+    const today = formatPracticeDate(new Date());
+    const history = loadPracticeHistory();
+    if (history.includes(today)) return;
+    savePracticeHistory([...history, today].sort());
+  }
+
+  function renderPracticeHistory() {
+    if (!practiceHistoryCalendar || !practiceHistoryMonths || !practiceHistoryCount) return;
+
+    const history = new Set(loadPracticeHistory());
+    const totalDays = history.size;
+    practiceHistoryCount.textContent = `${totalDays} day${totalDays === 1 ? "" : "s"}`;
+
+    const weeks = 18;
+    const today = new Date();
+    const end = new Date(today);
+    const dayOfWeek = end.getDay();
+    end.setDate(end.getDate() - dayOfWeek);
+    const start = new Date(end);
+    start.setDate(end.getDate() - ((weeks * 7) - 1));
+
+    const monthLabels: string[] = [];
+    const weekColumns: string[] = [];
+
+    for (let week = 0; week < weeks; week += 1) {
+      const weekStart = new Date(start);
+      weekStart.setDate(start.getDate() + (week * 7));
+      const monthLabel = weekStart.toLocaleString("en-US", { month: "short" });
+      const prevWeek = new Date(weekStart);
+      prevWeek.setDate(weekStart.getDate() - 7);
+      monthLabels.push(
+        week === 0 || prevWeek.getMonth() !== weekStart.getMonth()
+          ? `<span>${monthLabel}</span>`
+          : "<span></span>"
+      );
+
+      const cells: string[] = [];
+      for (let weekday = 0; weekday < 7; weekday += 1) {
+        const current = new Date(weekStart);
+        current.setDate(weekStart.getDate() + weekday);
+        const key = formatPracticeDate(current);
+        const practiced = history.has(key);
+        const isFuture = current > today;
+        const title = `${current.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric"
+        })}${practiced ? ": practiced" : ": no practice logged"}`;
+        cells.push(
+          `<span class="practice-history__day${practiced ? " is-practiced" : ""}${isFuture ? " is-future" : ""}" title="${title}" aria-label="${title}"></span>`
+        );
+      }
+
+      weekColumns.push(`<div class="practice-history__week">${cells.join("")}</div>`);
+    }
+
+    practiceHistoryMonths.innerHTML = monthLabels.join("");
+    practiceHistoryCalendar.innerHTML = weekColumns.join("");
   }
 
   function syncLibrary() {
@@ -195,8 +304,11 @@ function resourceKind(href: string) {
     setLibraryOpen(!isOpen);
   });
   window.addEventListener("tune-ratings-changed", syncLibrary);
+  window.addEventListener("tune-practiced", markTodayPracticed);
+  window.addEventListener("practice-history-changed", renderPracticeHistory);
   setLibraryOpen(false);
   syncLibrary();
+  renderPracticeHistory();
 </script>
 
 <style>
@@ -246,6 +358,124 @@ function resourceKind(href: string) {
     gap: 1rem;
     grid-template-columns: 1fr;
     margin: 1rem 0;
+  }
+
+  .practice-history {
+    margin: 0 0 1rem;
+  }
+
+  .practice-history__panel {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    box-shadow: none;
+    padding: 1rem;
+  }
+
+  .practice-history__calendar-wrap {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin-top: 1rem;
+    overflow-x: auto;
+    padding: 0.8rem;
+  }
+
+  .practice-history__grid {
+    column-gap: 0.45rem;
+    display: grid;
+    grid-template-columns: 2.2rem max-content;
+    grid-template-rows: auto auto;
+    row-gap: 0.35rem;
+    width: max-content;
+  }
+
+  .practice-history__corner {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .practice-history__months {
+    color: #8b949e;
+    column-gap: 0.25rem;
+    display: grid;
+    font-size: 0.7rem;
+    font-weight: 500;
+    grid-column: 2;
+    grid-row: 1;
+    grid-template-columns: repeat(18, 0.9rem);
+    justify-content: start;
+    line-height: 1;
+  }
+
+  .practice-history__weekdays {
+    color: #8b949e;
+    display: grid;
+    font-size: 0.68rem;
+    font-weight: 500;
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-rows: repeat(7, 0.9rem);
+    line-height: 0.9rem;
+    row-gap: 0.25rem;
+  }
+
+  .practice-history__weekdays span:nth-child(1) {
+    grid-row: 2;
+  }
+
+  .practice-history__weekdays span:nth-child(2) {
+    grid-row: 4;
+  }
+
+  .practice-history__weekdays span:nth-child(3) {
+    grid-row: 6;
+  }
+
+  .practice-history__calendar {
+    background: #0d1117;
+    column-gap: 0.25rem;
+    display: flex;
+    grid-column: 2;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+
+  .practice-history__week {
+    display: grid;
+    gap: 0.25rem;
+    grid-template-rows: repeat(7, 0.9rem);
+  }
+
+  .practice-history__day {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 2px;
+    display: block;
+    height: 0.9rem;
+    width: 0.9rem;
+  }
+
+  .practice-history__day.is-practiced {
+    background: #2ea043;
+    border-color: #2ea043;
+  }
+
+  .practice-history__day.is-future {
+    background: #0f141b;
+    border-color: #1b2128;
+  }
+
+  .practice-history .panel__header h2 {
+    font-size: 1rem;
+  }
+
+  .practice-history .panel__header span {
+    background: transparent;
+    border-radius: 0;
+    color: #c9d1d9;
+    font-size: 0.95rem;
+    font-weight: 500;
+    padding: 0;
   }
 
   .page-reset {
