@@ -1,11 +1,7 @@
 ---
 import PracticeTools from "./PracticeTools.astro";
 import TuneTrainer from "./TuneTrainer.astro";
-import { backingTracks, transcriptions, tunes } from "../data/tunes";
-
-const localChartCount = tunes.filter((tune) => tune.href.startsWith("/assets/")).length;
-const videoCount = tunes.filter((tune) => tune.href.includes("youtube.com")).length;
-const webCount = tunes.length - localChartCount - videoCount;
+import { backingTracks, songs, transcriptions, tunes } from "../data/tunes";
 
 function resourceLabel(href: string) {
   if (href.includes("youtube.com")) return "video";
@@ -24,20 +20,15 @@ function resourceKind(href: string) {
 <section class="hero" aria-labelledby="page-title">
   <div class="hero__text">
     <p class="eyebrow">Practice deck</p>
-    <h1 id="page-title">Tunes</h1>
-  </div>
-  <div class="hero__stats" aria-label="Repertoire summary">
-    <div>
-      <strong>{tunes.length}</strong>
-      <span>tunes</span>
-    </div>
-    <div>
-      <strong>{localChartCount}</strong>
-      <span>local charts</span>
-    </div>
-    <div>
-      <strong>{videoCount + webCount}</strong>
-      <span>outside links</span>
+    <div class="hero__title-row">
+      <h1 id="page-title">Songs</h1>
+      <label class="hero__select-wrap" for="library-mode">
+        <span class="hero__select-label">Library</span>
+        <select id="library-mode" class="hero__select" aria-label="Choose library view">
+          <option value="songs" selected>Songs</option>
+          <option value="tunes">Tunes</option>
+        </select>
+      </label>
     </div>
   </div>
 </section>
@@ -45,7 +36,12 @@ function resourceKind(href: string) {
 <TuneTrainer />
 <PracticeTools />
 
-<section id="tune-library" class="library" aria-labelledby="tunes-heading" data-collapsed="true">
+<section
+  id="tune-library"
+  class="library"
+  aria-labelledby="tunes-heading"
+  data-collapsed="true"
+>
   <div class="library__top">
     <div>
       <p class="eyebrow">Repertoire</p>
@@ -86,6 +82,48 @@ function resourceKind(href: string) {
       ))}
     </div>
     <p id="empty-library-message" class="empty-message" hidden>No tunes match that filter.</p>
+  </div>
+</section>
+
+<section
+  id="song-library"
+  class="library"
+  aria-labelledby="songs-heading"
+  data-collapsed="true"
+>
+  <div class="library__top">
+    <div>
+      <p class="eyebrow">Songs</p>
+      <h2 id="songs-heading">Song Library</h2>
+    </div>
+    <button
+      id="song-library-toggle"
+      class="library-toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="song-library-content"
+    >
+      Show Library
+    </button>
+  </div>
+
+  <div id="song-library-content" class="library__content">
+    <div class="library__tools">
+      <input id="song-search" type="search" placeholder="Search songs" aria-label="Search songs" />
+    </div>
+
+    <div id="songs-list" class="tune-grid">
+      {songs.map((song) => (
+        <article class="tune-card" data-song-card data-name={song.name}>
+          <div>
+            <a href={song.href} target="_blank" rel="noopener noreferrer">{song.name}</a>
+            <p>{song.pdfs.length} PDFs</p>
+          </div>
+          <span class="rating-pill rating-pill--neutral">{song.pdfs.length} charts</span>
+        </article>
+      ))}
+    </div>
+    <p id="empty-song-library-message" class="empty-message" hidden>No songs match that search.</p>
   </div>
 </section>
 
@@ -144,22 +182,51 @@ function resourceKind(href: string) {
 <script>
   const storageKey = "pkapt-tune-trainer-ratings-v1";
   const practiceHistoryKey = "pkapt-practice-history-v1";
+  const libraryModeKey = "pkapt-library-mode-v1";
+  const libraryModeSelect = document.getElementById("library-mode") as HTMLSelectElement | null;
+  const pageTitle = document.getElementById("page-title");
   const library = document.getElementById("tune-library");
   const searchInput = document.getElementById("tune-search") as HTMLInputElement | null;
   const libraryToggle = document.getElementById("library-toggle") as HTMLButtonElement | null;
+  const songLibrary = document.getElementById("song-library");
+  const songSearchInput = document.getElementById("song-search") as HTMLInputElement | null;
+  const songLibraryToggle = document.getElementById("song-library-toggle") as HTMLButtonElement | null;
   const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-filter]"));
   const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-tune-card]"));
+  const songCards = Array.from(document.querySelectorAll<HTMLElement>("[data-song-card]"));
   const emptyMessage = document.getElementById("empty-library-message");
+  const emptySongMessage = document.getElementById("empty-song-library-message");
   const practiceHistoryCalendar = document.getElementById("practice-history-calendar");
   const practiceHistoryMonths = document.getElementById("practice-history-months");
   const practiceHistoryCount = document.getElementById("practice-history-count");
   let activeFilter = "all";
 
-  function setLibraryOpen(isOpen: boolean) {
-    if (library) library.dataset.collapsed = isOpen ? "false" : "true";
-    if (libraryToggle) {
-      libraryToggle.setAttribute("aria-expanded", String(isOpen));
-      libraryToggle.textContent = isOpen ? "Hide Library" : "Show Library";
+  function loadLibraryMode() {
+    try {
+      const saved = localStorage.getItem(libraryModeKey);
+      return saved === "tunes" ? "tunes" : "songs";
+    } catch {
+      return "songs";
+    }
+  }
+
+  function saveLibraryMode(mode: "songs" | "tunes") {
+    localStorage.setItem(libraryModeKey, mode);
+  }
+
+  function applyLibraryMode(mode: "songs" | "tunes") {
+    if (libraryModeSelect) libraryModeSelect.value = mode;
+    document.title = mode === "songs" ? "Songs" : "Tunes";
+
+    if (pageTitle) pageTitle.textContent = mode === "songs" ? "Songs" : "Tunes";
+    window.dispatchEvent(new CustomEvent("library-mode-changed", { detail: { mode } }));
+  }
+
+  function setLibraryOpen(section: HTMLElement | null, toggle: HTMLButtonElement | null, isOpen: boolean) {
+    if (section) section.dataset.collapsed = isOpen ? "false" : "true";
+    if (toggle) {
+      toggle.setAttribute("aria-expanded", String(isOpen));
+      toggle.textContent = isOpen ? "Hide Library" : "Show Library";
     }
   }
 
@@ -290,6 +357,20 @@ function resourceKind(href: string) {
     if (emptyMessage) emptyMessage.hidden = visibleCount > 0;
   }
 
+  function syncSongLibrary() {
+    const query = songSearchInput?.value.trim().toLowerCase() ?? "";
+    let visibleCount = 0;
+
+    songCards.forEach((card) => {
+      const name = card.dataset.name ?? "";
+      const matchesSearch = name.toLowerCase().includes(query);
+      card.hidden = !matchesSearch;
+      if (!card.hidden) visibleCount += 1;
+    });
+
+    if (emptySongMessage) emptySongMessage.hidden = visibleCount > 0;
+  }
+
   filterButtons.forEach((button) => {
     button.addEventListener("click", () => {
       activeFilter = button.dataset.filter ?? "all";
@@ -299,34 +380,36 @@ function resourceKind(href: string) {
   });
 
   searchInput?.addEventListener("input", syncLibrary);
+  songSearchInput?.addEventListener("input", syncSongLibrary);
+  libraryModeSelect?.addEventListener("change", () => {
+    const mode = libraryModeSelect.value === "tunes" ? "tunes" : "songs";
+    saveLibraryMode(mode);
+    applyLibraryMode(mode);
+  });
   libraryToggle?.addEventListener("click", () => {
     const isOpen = libraryToggle.getAttribute("aria-expanded") === "true";
-    setLibraryOpen(!isOpen);
+    setLibraryOpen(library, libraryToggle, !isOpen);
+  });
+  songLibraryToggle?.addEventListener("click", () => {
+    const isOpen = songLibraryToggle.getAttribute("aria-expanded") === "true";
+    setLibraryOpen(songLibrary, songLibraryToggle, !isOpen);
   });
   window.addEventListener("tune-ratings-changed", syncLibrary);
   window.addEventListener("tune-practiced", markTodayPracticed);
   window.addEventListener("practice-history-changed", renderPracticeHistory);
-  setLibraryOpen(false);
+  setLibraryOpen(library, libraryToggle, false);
+  setLibraryOpen(songLibrary, songLibraryToggle, false);
   syncLibrary();
+  syncSongLibrary();
   renderPracticeHistory();
+  applyLibraryMode(loadLibraryMode());
 </script>
 
 <style>
   .hero {
-    align-items: end;
-    display: grid;
-    gap: 1.25rem;
-    grid-template-columns: 1fr;
     margin-bottom: 1.25rem;
   }
 
-  .hero__stats {
-    display: grid;
-    gap: 0.65rem;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .hero__stats div,
   .panel,
   .library {
     background: rgba(18, 27, 21, 0.82);
@@ -335,29 +418,43 @@ function resourceKind(href: string) {
     backdrop-filter: blur(14px);
   }
 
-  .hero__stats div {
-    border-radius: 8px;
-    padding: 0.8rem;
-  }
-
-  .hero__stats strong {
-    display: block;
-    font-size: 1.55rem;
-    line-height: 1;
-  }
-
-  .hero__stats span {
-    color: #a7b8a9;
-    display: block;
-    font-size: 0.8rem;
-    margin-top: 0.25rem;
-  }
-
   .utility-grid {
     display: grid;
     gap: 1rem;
     grid-template-columns: 1fr;
     margin: 1rem 0;
+  }
+
+  .hero__title-row {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem 1rem;
+  }
+
+  .hero__select-wrap {
+    display: grid;
+    gap: 0.35rem;
+    justify-items: start;
+  }
+
+  .hero__select-label {
+    color: #a7b8a9;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .hero__select {
+    appearance: none;
+    background: rgba(6, 12, 9, 0.72);
+    border: 1px solid rgba(214, 237, 218, 0.18);
+    border-radius: 8px;
+    color: #f2f4ea;
+    cursor: pointer;
+    min-width: 9rem;
+    padding: 0.6rem 2.2rem 0.6rem 0.8rem;
   }
 
   .practice-history {
@@ -621,6 +718,19 @@ function resourceKind(href: string) {
     color: #89988d;
   }
 
+  #song-search {
+    background: rgba(6, 12, 9, 0.72);
+    border: 1px solid rgba(214, 237, 218, 0.18);
+    border-radius: 8px;
+    color: #f2f4ea;
+    padding: 0.7rem 0.8rem;
+    width: 100%;
+  }
+
+  #song-search::placeholder {
+    color: #89988d;
+  }
+
   .filter-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -704,16 +814,17 @@ function resourceKind(href: string) {
     color: #b6c3b6;
   }
 
+  .rating-pill--neutral {
+    background: rgba(255, 255, 255, 0.09);
+    color: #b6c3b6;
+  }
+
   .empty-message {
     color: #a7b8a9;
     margin: 1rem 0 0;
   }
 
   @media (min-width: 760px) {
-    .hero {
-      grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr);
-    }
-
     .utility-grid {
       grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
     }

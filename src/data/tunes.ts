@@ -3,6 +3,12 @@ export type LinkItem = {
   href: string;
 };
 
+export type SongItem = {
+  name: string;
+  href: string;
+  pdfs: LinkItem[];
+};
+
 export const backingTracks: LinkItem[] = [
   { name: "C Generic", href: "https://www.youtube.com/watch?v=4pRXDvzW5Yk" },
   { name: "G Generic", href: "https://www.youtube.com/watch?v=SknFtfea7rA" },
@@ -66,4 +72,19 @@ export const tunes: LinkItem[] = [
 export const transcriptions: LinkItem[] = [
   { name: "Doc & Dawg", href: "/assets/Doc_&_Dawg.pdf" },
   { name: "Temperance Reel (Dawg solo)", href: "/assets/Temperance_Reel_Dawg_Solo.pdf" }
+];
+
+export const songs: SongItem[] = [
+  {
+    name: "Will the Circle Be Unbroken",
+    href: "/songs/will-the-circle-be-unbroken",
+    pdfs: [
+      { name: "Lyrics", href: "/assets/Will-The-Circle-Be-Unbroken-Lyrics.pdf" },
+      {
+        name: "Key of B with Double Stops",
+        href: "/assets/Will_The_Circle_Be_Unbroken_Key_of_B_with_Double_Stops.pdf"
+      },
+      { name: "Simple", href: "/assets/Will_The_Circle_Be_Unbroken_Simple.pdf" }
+    ]
+  }
 ];

@@ -1,0 +1,104 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { songs } from "../../data/tunes";
+
+const song = songs.find((entry) => entry.href === "/songs/will-the-circle-be-unbroken");
+
+if (!song) {
+  throw new Error("Will the Circle Be Unbroken song data is missing.");
+}
+---
+
+<BaseLayout title={song.name}>
+  <section class="song-page">
+    <div class="song-page__hero">
+      <div>
+        <p class="eyebrow">Song Library</p>
+        <h1>{song.name}</h1>
+        <p class="song-page__intro">All charts for this song are embedded below on one page.</p>
+      </div>
+      <a class="song-page__back" href="/">Back to tunes</a>
+    </div>
+
+    <div class="song-page__stack">
+      {song.pdfs.map((pdf) => (
+        <article class="song-sheet">
+          <div class="song-sheet__header">
+            <h2>{pdf.name}</h2>
+            <a href={pdf.href} target="_blank" rel="noopener noreferrer">Open PDF</a>
+          </div>
+          <iframe class="song-sheet__frame" src={pdf.href} title={`${song.name} - ${pdf.name}`}></iframe>
+        </article>
+      ))}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .song-page {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .song-page__hero {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+  }
+
+  .song-page__intro {
+    color: #b6c3b6;
+    margin: 0.6rem 0 0;
+    max-width: 42rem;
+  }
+
+  .song-page__back {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(214, 237, 218, 0.14);
+    border-radius: 999px;
+    color: #d4e3d2;
+    font-size: 0.82rem;
+    font-weight: 800;
+    padding: 0.5rem 0.8rem;
+    text-decoration: none;
+  }
+
+  .song-page__stack {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .song-sheet {
+    background: rgba(18, 27, 21, 0.82);
+    border: 1px solid rgba(214, 237, 218, 0.13);
+    border-radius: 8px;
+    box-shadow: 0 18px 54px rgba(0, 0, 0, 0.28);
+    display: grid;
+    gap: 0.9rem;
+    padding: 1rem;
+  }
+
+  .song-sheet__header {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+  }
+
+  .song-sheet__header a {
+    flex: 0 0 auto;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .song-sheet__frame {
+    background: #fff;
+    block-size: min(84vh, 1080px);
+    border: 0;
+    border-radius: 6px;
+    inline-size: 100%;
+  }
+</style>
