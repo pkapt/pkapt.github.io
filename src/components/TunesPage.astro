@@ -180,7 +180,7 @@ function resourceKind(href: string) {
 </div>
 
 <script>
-  const storageKey = "pkapt-tune-trainer-ratings-v1";
+  const storageKeyBase = "pkapt-tune-trainer-ratings";
   const practiceHistoryKey = "pkapt-practice-history-v1";
   const libraryModeKey = "pkapt-library-mode-v1";
   const libraryModeSelect = document.getElementById("library-mode") as HTMLSelectElement | null;
@@ -199,7 +199,9 @@ function resourceKind(href: string) {
   const practiceHistoryCalendar = document.getElementById("practice-history-calendar");
   const practiceHistoryMonths = document.getElementById("practice-history-months");
   const practiceHistoryCount = document.getElementById("practice-history-count");
+  const trainerShell = document.querySelector<HTMLElement>(".trainer-shell");
   let activeFilter = "all";
+  let libraryMode: "songs" | "tunes" = "songs";
 
   function loadLibraryMode() {
     try {
@@ -215,6 +217,7 @@ function resourceKind(href: string) {
   }
 
   function applyLibraryMode(mode: "songs" | "tunes") {
+    libraryMode = mode;
     if (libraryModeSelect) libraryModeSelect.value = mode;
     document.title = mode === "songs" ? "Songs" : "Tunes";
 
@@ -230,9 +233,13 @@ function resourceKind(href: string) {
     }
   }
 
+  function getModeStorageKey(base: string) {
+    return `${base}-${libraryMode}-v1`;
+  }
+
   function loadRatings(): Record<string, number> {
     try {
-      return JSON.parse(localStorage.getItem(storageKey) ?? "{}");
+      return JSON.parse(localStorage.getItem(getModeStorageKey(storageKeyBase)) ?? "{}");
     } catch {
       return {};
     }
@@ -371,11 +378,42 @@ function resourceKind(href: string) {
     if (emptySongMessage) emptySongMessage.hidden = visibleCount > 0;
   }
 
+  function showEntryInTrainer(mode: "songs" | "tunes", link: HTMLAnchorElement) {
+    window.dispatchEvent(
+      new CustomEvent("tune-trainer-show-entry", {
+        detail: {
+          mode,
+          name: link.textContent?.trim() ?? "",
+          href: link.href
+        }
+      })
+    );
+    trainerShell?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   filterButtons.forEach((button) => {
     button.addEventListener("click", () => {
       activeFilter = button.dataset.filter ?? "all";
       filterButtons.forEach((item) => item.classList.toggle("is-active", item === button));
       syncLibrary();
+    });
+  });
+
+  cards.forEach((card) => {
+    const link = card.querySelector<HTMLAnchorElement>("a");
+    if (!link) return;
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      showEntryInTrainer("tunes", link);
+    });
+  });
+
+  songCards.forEach((card) => {
+    const link = card.querySelector<HTMLAnchorElement>("a");
+    if (!link) return;
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      showEntryInTrainer("songs", link);
     });
   });
 

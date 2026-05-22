@@ -1,45 +1,26 @@
 <section class="trainer-shell" aria-labelledby="tune-trainer-title">
   <div class="trainer-queue">
-    <div class="trainer-queue__main">
-      <div class="trainer-queue__left">
-        <div class="trainer-board__top">
-          <div class="trainer-board__actions">
-            <button id="tune-trainer-pick" class="primary-action" type="button">Get Song</button>
-            <div class="active-batch" aria-live="polite">
-              <span class="active-batch__label">Active</span>
-              <strong id="tune-trainer-active-count">4</strong>
-            </div>
-          </div>
-        </div>
-
-        <div id="tune-trainer-card" class="practice-card" hidden>
-          <span id="tune-trainer-label" class="practice-card__label">Next up</span>
-          <div class="practice-card__header">
-            <a id="tune-trainer-link" href="" target="_blank" rel="noopener noreferrer"></a>
-            <label class="practice-card__toggle">
-              <input id="tune-trainer-deprioritize" type="checkbox" />
-              <span>Low prio</span>
-            </label>
-          </div>
-          <div id="tune-trainer-rating" class="tune-trainer__rating" aria-label="Rate this song">
-            <button type="button" data-rating="1">1 Good</button>
-            <button type="button" data-rating="2">2 OK</button>
-            <button type="button" data-rating="3">3 Needs Work</button>
-          </div>
-        </div>
-
-        <div id="tune-trainer-empty" class="practice-card practice-card--empty">
-          <span id="tune-trainer-empty-label" class="practice-card__label">Ready</span>
-          <p id="tune-trainer-empty-copy">Press Get Song to pull from the deck.</p>
-        </div>
+    <div class="trainer-board__top">
+      <div class="trainer-board__actions">
+        <button id="tune-trainer-pick" class="primary-action" type="button">Get Song</button>
       </div>
+    </div>
 
-      <div class="trainer-queue__right">
-        <div class="active-tunes">
-          <span id="tune-trainer-active-label" class="practice-card__label">Active Songs</span>
-          <ul id="tune-trainer-active-list" class="active-tunes__list" aria-live="polite"></ul>
-        </div>
+    <div id="tune-trainer-card" class="practice-card" hidden>
+      <span id="tune-trainer-label" class="practice-card__label">Current card</span>
+      <div class="practice-card__header">
+        <a id="tune-trainer-link" href="" target="_blank" rel="noopener noreferrer"></a>
       </div>
+      <div id="tune-trainer-rating" class="tune-trainer__rating" aria-label="Rate this song">
+        <button type="button" data-rating="1">1 Good</button>
+        <button type="button" data-rating="2">2 OK</button>
+        <button type="button" data-rating="3">3 Needs Work</button>
+      </div>
+    </div>
+
+    <div id="tune-trainer-empty" class="practice-card practice-card--empty">
+      <span id="tune-trainer-empty-label" class="practice-card__label">Ready</span>
+      <p id="tune-trainer-empty-copy">Press Get Song to pull from the deck.</p>
     </div>
   </div>
 
@@ -97,12 +78,11 @@
 
 <script>
   const storageKeyBase = "pkapt-tune-trainer-ratings";
-  const activeBatchStorageKeyBase = "pkapt-tune-trainer-active-batch";
-  const activeBatchProgressStorageKeyBase = "pkapt-tune-trainer-active-batch-progress";
-  const deprioritizedStorageKeyBase = "pkapt-tune-trainer-deprioritized";
+  const scheduleKeyBase = "pkapt-tune-trainer-schedule";
   const practiceHistoryKey = "pkapt-practice-history-v1";
-  const activeBatchSize = 4;
-  const minimumBatchCycles = 3;
+  const goodIntervalsDays = [1, 3, 7, 14, 30];
+  const okIntervalsDays = [0.25, 1, 3, 7];
+  const needsWorkIntervalDays = 0;
   const tunes = Array.from(document.querySelectorAll<HTMLAnchorElement>("#tunes-list a")).map((link) => ({
     name: link.textContent?.trim() ?? "",
     href: link.href
@@ -112,12 +92,21 @@
     href: link.href
   }));
 
+  type Entry = { name: string; href: string };
+  type ScheduleRecord = {
+    dueAt: number;
+    streak: number;
+    lastRating?: number;
+    lastReviewedAt?: number;
+    lastShownAt?: number;
+  };
+  type ScheduleMap = Record<string, ScheduleRecord>;
+
   const pickButton = document.getElementById("tune-trainer-pick");
   const resetButton = document.getElementById("tune-trainer-reset");
   const card = document.getElementById("tune-trainer-card");
   const emptyCard = document.getElementById("tune-trainer-empty");
   const tuneLink = document.getElementById("tune-trainer-link") as HTMLAnchorElement | null;
-  const deprioritizeInput = document.getElementById("tune-trainer-deprioritize") as HTMLInputElement | null;
   const preview = document.getElementById("tune-trainer-preview");
   const previewToggle = document.getElementById("tune-trainer-preview-toggle") as HTMLButtonElement | null;
   const previewLink = document.getElementById("tune-trainer-preview-link") as HTMLAnchorElement | null;
@@ -128,11 +117,8 @@
   const label = document.getElementById("tune-trainer-label");
   const emptyLabel = document.getElementById("tune-trainer-empty-label");
   const emptyCopy = document.getElementById("tune-trainer-empty-copy");
-  const activeLabel = document.getElementById("tune-trainer-active-label");
   const previewLabel = document.getElementById("tune-trainer-preview-label");
   const ratingWrap = document.getElementById("tune-trainer-rating");
-  const activeCount = document.getElementById("tune-trainer-active-count");
-  const activeList = document.getElementById("tune-trainer-active-list");
   const metricGood = document.getElementById("metric-good");
   const metricOk = document.getElementById("metric-ok");
   const metricWork = document.getElementById("metric-work");
@@ -141,10 +127,7 @@
   const progressOk = document.getElementById("progress-ok");
   const progressWork = document.getElementById("progress-work");
   let libraryMode: "songs" | "tunes" = "songs";
-  let currentTune: { name: string; href: string } | null = null;
-  let activeBatch = loadActiveBatch();
-  let activeBatchProgress = loadActiveBatchProgress(activeBatch);
-  let deprioritizedTunes = loadDeprioritizedTunes();
+  let currentTune: Entry | null = null;
 
   function getEntries() {
     return libraryMode === "songs" ? songs : tunes;
@@ -160,15 +143,13 @@
           item: "song",
           itemPlural: "songs",
           pickAction: "Get Song",
-          previewText: "Song Preview",
-          activeText: "Active Songs"
+          previewText: "Song Preview"
         }
       : {
           item: "tune",
           itemPlural: "tunes",
           pickAction: "Get Tune",
-          previewText: "Chart Preview",
-          activeText: "Active Tunes"
+          previewText: "Chart Preview"
         };
   }
 
@@ -177,7 +158,6 @@
     if (pickButton) pickButton.textContent = terms.pickAction;
     if (emptyLabel) emptyLabel.textContent = "Ready";
     if (emptyCopy) emptyCopy.textContent = `Press ${terms.pickAction} to pull from the deck.`;
-    if (activeLabel) activeLabel.textContent = terms.activeText;
     if (previewLabel) previewLabel.textContent = terms.previewText;
     if (ratingWrap) ratingWrap.setAttribute("aria-label", `Rate this ${terms.item}`);
     if (previewPdf) previewPdf.title = terms.previewText;
@@ -202,211 +182,50 @@
     window.dispatchEvent(new CustomEvent("tune-ratings-changed"));
   }
 
-  function loadDeprioritizedTunes() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(getModeStorageKey(deprioritizedStorageKeyBase)) ?? "[]");
-      const knownTuneNames = new Set(getEntries().map((tune) => tune.name));
-      if (!Array.isArray(saved)) return [];
+  function normalizeSchedule(raw: unknown, entries = getEntries()) {
+    const knownNames = new Set(entries.map((entry) => entry.name));
+    const next: ScheduleMap = {};
 
-      return saved.filter((name, index) =>
-        typeof name === "string" &&
-        knownTuneNames.has(name) &&
-        saved.indexOf(name) === index
-      );
-    } catch {
-      return [];
-    }
-  }
-
-  function syncDeprioritizeToggle() {
-    if (!deprioritizeInput) return;
-    deprioritizeInput.checked = currentTune ? deprioritizedTunes.includes(currentTune.name) : false;
-    deprioritizeInput.disabled = !currentTune;
-  }
-
-  function saveDeprioritizedTunes(names: string[]) {
-    deprioritizedTunes = names;
-    localStorage.setItem(getModeStorageKey(deprioritizedStorageKeyBase), JSON.stringify(names));
-    syncDeprioritizeToggle();
-    renderActiveBatchList();
-  }
-
-  function pruneDeprioritizedTunes() {
-    const nextNames = deprioritizedTunes.filter((name) => activeBatch.includes(name));
-    if (nextNames.length === deprioritizedTunes.length) return;
-    deprioritizedTunes = nextNames;
-    localStorage.setItem(getModeStorageKey(deprioritizedStorageKeyBase), JSON.stringify(nextNames));
-  }
-
-  function loadActiveBatch() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(getModeStorageKey(activeBatchStorageKeyBase)) ?? "[]");
-      const knownTuneNames = new Set(getEntries().map((tune) => tune.name));
-      if (!Array.isArray(saved)) return [];
-
-      return saved.filter((name, index) =>
-        typeof name === "string" &&
-        knownTuneNames.has(name) &&
-        saved.indexOf(name) === index
-      );
-    } catch {
-      return [];
-    }
-  }
-
-  function createBatchProgress(batch: string[]) {
-    return Object.fromEntries(batch.map((name) => [name, 0]));
-  }
-
-  function normalizeBatchProgress(batch: string[], progress: Record<string, number>) {
-    return batch.reduce<Record<string, number>>((next, name) => {
-      const value = Number(progress[name]);
-      next[name] = Number.isFinite(value) && value >= 0 ? value : 0;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
       return next;
-    }, {});
+    }
+
+    for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (!knownNames.has(name) || !value || typeof value !== "object" || Array.isArray(value)) continue;
+
+      const record = value as Partial<ScheduleRecord>;
+      const dueAt = Number(record.dueAt);
+      const streak = Number(record.streak);
+      const lastRating = Number(record.lastRating);
+      const lastReviewedAt = Number(record.lastReviewedAt);
+      const lastShownAt = Number(record.lastShownAt);
+
+      next[name] = {
+        dueAt: Number.isFinite(dueAt) ? dueAt : 0,
+        streak: Number.isFinite(streak) && streak >= 0 ? Math.floor(streak) : 0,
+        lastRating: [1, 2, 3].includes(lastRating) ? lastRating : undefined,
+        lastReviewedAt: Number.isFinite(lastReviewedAt) ? lastReviewedAt : undefined,
+        lastShownAt: Number.isFinite(lastShownAt) ? lastShownAt : undefined
+      };
+    }
+
+    return next;
   }
 
-  function loadActiveBatchProgress(batch = activeBatch) {
-    const normalizedBatch = Array.isArray(batch) ? batch : [];
-    if (!normalizedBatch.length) return {};
-
+  function loadSchedule() {
     try {
-      const saved = JSON.parse(localStorage.getItem(getModeStorageKey(activeBatchProgressStorageKeyBase)) ?? "{}");
-      if (!saved || typeof saved !== "object" || Array.isArray(saved)) {
-        return createBatchProgress(normalizedBatch);
-      }
-
-      return normalizeBatchProgress(normalizedBatch, saved as Record<string, number>);
+      return normalizeSchedule(JSON.parse(localStorage.getItem(getModeStorageKey(scheduleKeyBase)) ?? "{}"));
     } catch {
-      return createBatchProgress(normalizedBatch);
+      return {};
     }
   }
 
-  function saveActiveBatchProgress(progress: Record<string, number>, batch = activeBatch) {
-    activeBatchProgress = normalizeBatchProgress(batch, progress);
-    localStorage.setItem(
-      getModeStorageKey(activeBatchProgressStorageKeyBase),
-      JSON.stringify(activeBatchProgress)
-    );
-    renderActiveBatchList();
+  function saveSchedule(schedule: ScheduleMap) {
+    localStorage.setItem(getModeStorageKey(scheduleKeyBase), JSON.stringify(schedule));
   }
 
-  function saveActiveBatch(batch: string[]) {
-    activeBatch = batch;
-    localStorage.setItem(getModeStorageKey(activeBatchStorageKeyBase), JSON.stringify(batch));
-    saveActiveBatchProgress(createBatchProgress(batch), batch);
-    pruneDeprioritizedTunes();
-    updateActiveBatchCount();
-    syncDeprioritizeToggle();
-    renderActiveBatchList();
-  }
-
-  function isActiveBatchComplete(batch = activeBatch, progress = activeBatchProgress) {
-    if (!batch.length) return false;
-
-    const ratings = loadRatings();
-    return batch.every((name) => {
-      const cycles = Number(progress[name]);
-      return cycles >= minimumBatchCycles && Number(ratings[name]) === 1;
-    });
-  }
-
-  function getWeight(tune: { name: string }, ratings: Record<string, number>) {
-    const rating = Number(ratings[tune.name]);
-    if (rating === 1) return 1;
-    if (rating === 2) return 3;
-    if (rating === 3) return 7;
-    return 9;
-  }
-
-  function pickWeightedTune(excludedNames = new Set<string>()) {
-    const ratings = loadRatings();
-    const weightedTunes = getEntries()
-      .filter((tune) => !excludedNames.has(tune.name))
-      .map((tune) => ({
-        tune,
-        weight: getWeight(tune, ratings)
-      }));
-
-    if (!weightedTunes.length) return null;
-
-    const totalWeight = weightedTunes.reduce((sum, item) => sum + item.weight, 0);
-    let target = Math.random() * totalWeight;
-
-    for (const item of weightedTunes) {
-      target -= item.weight;
-      if (target <= 0) {
-        return item.tune;
-      }
-    }
-
-    return weightedTunes[weightedTunes.length - 1]?.tune ?? null;
-  }
-
-  function pickWeightedFromTunes(availableTunes: { name: string; href: string }[]) {
-    const ratings = loadRatings();
-    const weightedTunes = availableTunes.map((tune) => ({
-      tune,
-      weight: getWeight(tune, ratings)
-    }));
-
-    if (!weightedTunes.length) return null;
-
-    const totalWeight = weightedTunes.reduce((sum, item) => sum + item.weight, 0);
-    let target = Math.random() * totalWeight;
-
-    for (const item of weightedTunes) {
-      target -= item.weight;
-      if (target <= 0) {
-        return item.tune;
-      }
-    }
-
-    return weightedTunes[weightedTunes.length - 1]?.tune ?? null;
-  }
-
-  function buildActiveBatch() {
-    const nextBatch: string[] = [];
-    const targetSize = Math.min(activeBatchSize, getEntries().length);
-
-    while (nextBatch.length < targetSize) {
-      const lowPrioLocked = !areRegularTunesCleared();
-      const excludedNames = new Set([
-        ...nextBatch,
-        ...(lowPrioLocked ? deprioritizedTunes : [])
-      ]);
-      const tune = pickWeightedTune(excludedNames);
-      if (!tune) break;
-      nextBatch.push(tune.name);
-    }
-
-    return nextBatch;
-  }
-
-  function areRegularTunesCleared() {
-    const ratings = loadRatings();
-
-    return getEntries()
-      .filter((tune) => !deprioritizedTunes.includes(tune.name))
-      .every((tune) => {
-        const rating = Number(ratings[tune.name]);
-        return rating === 1 || rating === 2;
-      });
-  }
-
-  function ensureActiveBatch() {
-    if (activeBatch.length > 0 && !isActiveBatchComplete()) {
-      activeBatchProgress = loadActiveBatchProgress(activeBatch);
-      updateActiveBatchCount();
-      renderActiveBatchList();
-      return;
-    }
-
-    saveActiveBatch(buildActiveBatch());
-  }
-
-  function updateActiveBatchCount() {
-    if (activeCount) activeCount.textContent = String(activeBatch.length);
+  function getScheduleRecord(name: string, schedule = loadSchedule()) {
+    return schedule[name] ?? { dueAt: 0, streak: 0 };
   }
 
   function getPreviewKind(href: string) {
@@ -446,7 +265,7 @@
     }
   }
 
-  function updatePreview(tune: { name: string; href: string } | null) {
+  function updatePreview(tune: Entry | null) {
     const terms = getLibraryTerms();
     if (!tune || !preview) {
       clearPreview();
@@ -487,54 +306,167 @@
     setPreviewCollapsed(false);
   }
 
-  function renderActiveBatchList() {
-    if (!activeList) return;
-    const terms = getLibraryTerms();
-    const entries = getEntries();
+  function formatRelativeDue(dueAt: number) {
+    const deltaMs = dueAt - Date.now();
+    if (deltaMs <= 0) return "due now";
 
-    const items = activeBatch
-      .map((name) => entries.find((tune) => tune.name === name))
-      .filter((tune): tune is { name: string; href: string } => Boolean(tune))
-      .map((tune) => {
-        const currentClass = currentTune?.name === tune.name ? " is-current" : "";
-        const deprioritizedClass = deprioritizedTunes.includes(tune.name) ? " is-deprioritized" : "";
-        const cycles = Number(activeBatchProgress[tune.name] ?? 0);
-        const badge = deprioritizedTunes.includes(tune.name)
-          ? "<span class=\"active-tunes__badge\">Low prio</span>"
-          : "";
-        return `<li><a class="active-tunes__link${currentClass}${deprioritizedClass}" href="${tune.href}" target="_blank" rel="noopener noreferrer"><span>${tune.name}</span><span class="active-tunes__meta">${cycles}/${minimumBatchCycles}</span>${badge}</a></li>`;
-      });
+    const totalMinutes = Math.round(deltaMs / 60000);
+    if (totalMinutes < 60) return `due in ${totalMinutes} min`;
 
-    activeList.innerHTML = items.length
-      ? items.join("")
-      : `<li class="active-tunes__empty">No active ${terms.itemPlural}.</li>`;
+    const totalHours = Math.round(totalMinutes / 60);
+    if (totalHours < 48) return `due in ${totalHours} hr`;
+
+    const totalDays = Math.round(totalHours / 24);
+    return `due in ${totalDays} day${totalDays === 1 ? "" : "s"}`;
   }
 
-  function pickFromActiveBatch() {
-    ensureActiveBatch();
-    let activeTunes = getEntries().filter((tune) => activeBatch.includes(tune.name));
-    if (!activeTunes.length) return null;
-
-    if (activeTunes.length > 1 && currentTune) {
-      const nextOptions = activeTunes.filter((tune) => tune.name !== currentTune.name);
-      if (nextOptions.length) activeTunes = nextOptions;
+  function updateCardLabel(tune: Entry | null) {
+    if (!label) return;
+    if (!tune) {
+      label.textContent = "Current card";
+      return;
     }
 
-    return pickWeightedFromTunes(activeTunes);
+    const ratings = loadRatings();
+    const rating = ratings[tune.name];
+    const schedule = loadSchedule();
+    const record = getScheduleRecord(tune.name, schedule);
+    const ratingText = rating ? `Rating ${rating}` : "Unrated";
+    label.textContent = `${ratingText} • ${formatRelativeDue(record.dueAt)}`;
+  }
+
+  function showTune(tune: Entry) {
+    currentTune = tune;
+    if (!tuneLink || !card || !emptyCard) return;
+
+    tuneLink.textContent = tune.name;
+    tuneLink.href = tune.href;
+    updateCardLabel(tune);
+    card.hidden = false;
+    emptyCard.hidden = true;
+    updatePreview(tune);
+  }
+
+  function showExternalTune(tune: Entry, mode: "songs" | "tunes") {
+    libraryMode = mode;
+    applyLibraryTerms();
+    markTuneShown(tune);
+    showTune(tune);
+    updateStatus();
+  }
+
+  function clearCurrentTune() {
+    currentTune = null;
+    if (card) card.hidden = true;
+    if (emptyCard) emptyCard.hidden = false;
+    clearPreview();
+  }
+
+  function markTuneShown(tune: Entry) {
+    const schedule = loadSchedule();
+    const record = getScheduleRecord(tune.name, schedule);
+    schedule[tune.name] = {
+      ...record,
+      lastShownAt: Date.now()
+    };
+    saveSchedule(schedule);
+  }
+
+  function pickNextTune() {
+    const entries = getEntries();
+    if (!entries.length) return null;
+
+    const schedule = loadSchedule();
+    const now = Date.now();
+    const ranked = entries
+      .map((entry) => ({
+        entry,
+        record: getScheduleRecord(entry.name, schedule)
+      }))
+      .sort((left, right) => {
+        if (left.record.dueAt !== right.record.dueAt) {
+          return left.record.dueAt - right.record.dueAt;
+        }
+
+        return (left.record.lastShownAt ?? 0) - (right.record.lastShownAt ?? 0);
+      });
+
+    const due = ranked.filter(({ record }) => record.dueAt <= now);
+    const pool = due.length ? due : ranked;
+    const withoutCurrent =
+      currentTune && pool.length > 1
+        ? pool.filter(({ entry }) => entry.name !== currentTune.name)
+        : pool;
+
+    return (withoutCurrent[0] ?? pool[0] ?? null)?.entry ?? null;
+  }
+
+  function getNextIntervalDays(rating: number, streak: number) {
+    if (rating === 1) {
+      return goodIntervalsDays[Math.min(streak, goodIntervalsDays.length - 1)] ?? goodIntervalsDays.at(-1) ?? 30;
+    }
+
+    if (rating === 2) {
+      return okIntervalsDays[Math.min(streak, okIntervalsDays.length - 1)] ?? okIntervalsDays.at(-1) ?? 7;
+    }
+
+    return needsWorkIntervalDays;
+  }
+
+  function reviewCurrentTune(rating: number) {
+    if (!currentTune) return;
+
+    const ratings = loadRatings();
+    ratings[currentTune.name] = rating;
+    saveRatings(ratings);
+
+    const schedule = loadSchedule();
+    const record = getScheduleRecord(currentTune.name, schedule);
+    const nextStreak =
+      rating === 1 ? record.streak + 1
+      : rating === 2 ? Math.max(record.streak, 1)
+      : 0;
+    const intervalDays = getNextIntervalDays(rating, nextStreak);
+    const reviewedAt = Date.now();
+
+    schedule[currentTune.name] = {
+      dueAt: reviewedAt + intervalDays * 24 * 60 * 60 * 1000,
+      streak: nextStreak,
+      lastRating: rating,
+      lastReviewedAt: reviewedAt,
+      lastShownAt: record.lastShownAt
+    };
+    saveSchedule(schedule);
+
+    updateCardLabel(currentTune);
+    updateStatus();
   }
 
   function updateStatus() {
     const terms = getLibraryTerms();
     const ratings = loadRatings();
+    const schedule = loadSchedule();
     const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
     const entries = getEntries();
-    const knownTuneNames = new Set(entries.map((tune) => tune.name));
-    const ratedNames = Object.keys(ratings).filter((name) => knownTuneNames.has(name));
+    const knownNames = new Set(entries.map((entry) => entry.name));
+    const ratedNames = Object.keys(ratings).filter((name) => knownNames.has(name));
+    const now = Date.now();
+    let dueCount = 0;
+    let nextDueAt = Number.POSITIVE_INFINITY;
 
     ratedNames.forEach((name) => {
       const rating = ratings[name];
       if (counts[rating] !== undefined) {
         counts[rating] += 1;
+      }
+    });
+
+    entries.forEach((entry) => {
+      const record = getScheduleRecord(entry.name, schedule);
+      if (record.dueAt <= now) {
+        dueCount += 1;
+      } else if (record.dueAt < nextDueAt) {
+        nextDueAt = record.dueAt;
       }
     });
 
@@ -553,103 +485,48 @@
     if (progressWork) progressWork.style.width = `${workPct}%`;
 
     if (status) {
-      const batchCyclesMet = activeBatch.filter((name) => Number(activeBatchProgress[name] ?? 0) >= minimumBatchCycles).length;
-      const batchGoodCount = activeBatch.filter((name) => Number(ratings[name]) === 1).length;
-      const batchNote = activeBatch.length
-        ? `${activeBatch.length} ${terms.item}${activeBatch.length === 1 ? "" : "s"} active in this batch. ${batchCyclesMet}/${activeBatch.length} hit ${minimumBatchCycles} reps and ${batchGoodCount}/${activeBatch.length} are Good.`
-        : `A new batch will start on your next ${terms.item}.`;
-      status.textContent = `${rated} of ${entries.length} rated. The deck is weighted toward unrated and needs-work ${terms.itemPlural}. ${batchNote}`;
+      const nextDueText =
+        nextDueAt === Number.POSITIVE_INFINITY
+          ? "Nothing else is scheduled yet."
+          : `Next review is ${formatRelativeDue(nextDueAt)}.`;
+      status.textContent =
+        `${dueCount} ${terms.itemPlural} due now. ${rated} of ${entries.length} rated. ` +
+        `Use ${terms.pickAction} to pull the next ${terms.item}. ${nextDueText}`;
     }
 
     window.dispatchEvent(new CustomEvent("tune-ratings-changed"));
   }
 
-  function showTune(tune: { name: string; href: string }) {
-    if (activeBatch.includes(tune.name)) {
-      saveActiveBatchProgress({
-        ...activeBatchProgress,
-        [tune.name]: Number(activeBatchProgress[tune.name] ?? 0) + 1
-      });
+  pickButton?.addEventListener("click", () => {
+    const tune = pickNextTune();
+    window.dispatchEvent(new CustomEvent("tune-practiced"));
+    if (!tune) {
+      clearCurrentTune();
+      updateStatus();
+      return;
     }
 
-    currentTune = tune;
-    if (!tuneLink || !card || !emptyCard) return;
-
-    const ratings = loadRatings();
-    const rating = ratings[tune.name];
-
-    tuneLink.textContent = tune.name;
-    tuneLink.href = tune.href;
-    if (label) label.textContent = rating ? `Current rating: ${rating}` : "Unrated";
-    card.hidden = false;
-    emptyCard.hidden = true;
-    syncDeprioritizeToggle();
-    renderActiveBatchList();
-    updatePreview(tune);
-  }
-
-  pickButton?.addEventListener("click", () => {
-    const tune = pickFromActiveBatch();
-    window.dispatchEvent(new CustomEvent("tune-practiced"));
-    if (tune) showTune(tune);
+    markTuneShown(tune);
+    showTune(tune);
+    updateStatus();
   });
 
   card?.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
-    const rating = target.getAttribute("data-rating");
-    if (!rating || !currentTune) return;
-
-    const ratings = loadRatings();
-    ratings[currentTune.name] = Number(rating);
-    saveRatings(ratings);
-
-    if (isActiveBatchComplete()) {
-      saveActiveBatch([]);
-      currentTune = null;
-      if (card) card.hidden = true;
-      if (emptyCard) emptyCard.hidden = false;
-      clearPreview();
-    }
-
-    updateStatus();
-
-    const tune = pickFromActiveBatch();
-    if (tune) showTune(tune);
+    const rating = Number(target.getAttribute("data-rating"));
+    if (![1, 2, 3].includes(rating) || !currentTune) return;
+    reviewCurrentTune(rating);
   });
 
   resetButton?.addEventListener("click", () => {
     const terms = getLibraryTerms();
     if (!window.confirm(`Clear all saved ${terms.item} ratings in this browser?`)) return;
     localStorage.removeItem(getModeStorageKey(storageKeyBase));
-    localStorage.removeItem(getModeStorageKey(activeBatchStorageKeyBase));
-    localStorage.removeItem(getModeStorageKey(activeBatchProgressStorageKeyBase));
-    localStorage.removeItem(getModeStorageKey(deprioritizedStorageKeyBase));
+    localStorage.removeItem(getModeStorageKey(scheduleKeyBase));
     localStorage.removeItem(practiceHistoryKey);
-    if (card) card.hidden = true;
-    if (emptyCard) emptyCard.hidden = false;
-    currentTune = null;
-    activeBatch = [];
-    activeBatchProgress = {};
-    deprioritizedTunes = [];
+    clearCurrentTune();
     updateStatus();
-    updateActiveBatchCount();
-    syncDeprioritizeToggle();
-    renderActiveBatchList();
-    clearPreview();
     window.dispatchEvent(new CustomEvent("practice-history-changed"));
-  });
-
-  deprioritizeInput?.addEventListener("change", () => {
-    if (!currentTune) return;
-
-    if (deprioritizeInput.checked) {
-      if (!deprioritizedTunes.includes(currentTune.name)) {
-        saveDeprioritizedTunes([...deprioritizedTunes, currentTune.name]);
-      }
-      return;
-    }
-
-    saveDeprioritizedTunes(deprioritizedTunes.filter((name) => name !== currentTune.name));
   });
 
   previewToggle?.addEventListener("click", () => {
@@ -660,23 +537,21 @@
   window.addEventListener("library-mode-changed", (event) => {
     const customEvent = event as CustomEvent<{ mode?: "songs" | "tunes" }>;
     libraryMode = customEvent.detail?.mode === "tunes" ? "tunes" : "songs";
-    currentTune = null;
-    activeBatch = loadActiveBatch();
-    activeBatchProgress = loadActiveBatchProgress(activeBatch);
-    deprioritizedTunes = loadDeprioritizedTunes();
-    if (card) card.hidden = true;
-    if (emptyCard) emptyCard.hidden = false;
-    clearPreview();
+    clearCurrentTune();
     applyLibraryTerms();
-    ensureActiveBatch();
-    syncDeprioritizeToggle();
-    renderActiveBatchList();
     updateStatus();
   });
 
+  window.addEventListener("tune-trainer-show-entry", (event) => {
+    const customEvent = event as CustomEvent<{ mode?: "songs" | "tunes"; name?: string; href?: string }>;
+    const mode = customEvent.detail?.mode === "tunes" ? "tunes" : "songs";
+    const name = customEvent.detail?.name?.trim() ?? "";
+    const href = customEvent.detail?.href ?? "";
+    if (!name || !href) return;
+    showExternalTune({ name, href }, mode);
+  });
+
   applyLibraryTerms();
-  ensureActiveBatch();
-  syncDeprioritizeToggle();
   updateStatus();
 </script>
 
@@ -696,13 +571,6 @@
   }
 
   .trainer-queue {
-    display: grid;
-    gap: 0.8rem;
-  }
-
-  .trainer-queue__main,
-  .trainer-queue__left,
-  .trainer-queue__right {
     display: grid;
     gap: 0.8rem;
   }
@@ -739,31 +607,6 @@
     flex: 1;
   }
 
-  .active-batch {
-    align-items: center;
-    background: rgba(255, 255, 255, 0.065);
-    border: 1px solid rgba(214, 237, 218, 0.12);
-    border-radius: 8px;
-    color: #f2f4ea;
-    display: grid;
-    min-width: 4.6rem;
-    padding: 0.45rem 0.75rem;
-    text-align: center;
-  }
-
-  .active-batch__label {
-    color: #a7b8a9;
-    font-size: 0.7rem;
-    font-weight: 780;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .active-batch strong {
-    font-size: 1.25rem;
-    line-height: 1;
-  }
-
   .ghost-action {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(214, 237, 218, 0.16);
@@ -778,25 +621,6 @@
     color: #fff;
     min-height: 10rem;
     padding: 1rem;
-  }
-
-  .active-tunes {
-    background: rgba(255, 255, 255, 0.055);
-    border: 1px solid rgba(214, 237, 218, 0.12);
-    border-radius: 8px;
-    padding: 0.8rem;
-  }
-
-  .active-tunes__list {
-    display: grid;
-    gap: 0.45rem;
-    list-style: none;
-    margin: 0.55rem 0 0;
-    padding: 0;
-  }
-
-  .active-tunes__list li {
-    min-width: 0;
   }
 
   .tune-preview {
@@ -870,56 +694,6 @@
     margin: 0;
   }
 
-  .active-tunes__link,
-  .active-tunes__empty {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(214, 237, 218, 0.1);
-    border-radius: 7px;
-    color: #ecf4e8;
-    display: flex;
-    font-weight: 700;
-    gap: 0.6rem;
-    justify-content: space-between;
-    padding: 0.6rem 0.7rem;
-    text-decoration: none;
-  }
-
-  .active-tunes__link.is-current {
-    background: rgba(136, 219, 165, 0.14);
-    border-color: rgba(136, 219, 165, 0.4);
-    color: #baf1cb;
-  }
-
-  .active-tunes__link.is-deprioritized {
-    opacity: 0.72;
-  }
-
-  .active-tunes__badge {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 999px;
-    color: #d7dfaa;
-    flex: 0 0 auto;
-    font-size: 0.68rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    padding: 0.18rem 0.42rem;
-    text-transform: uppercase;
-  }
-
-  .active-tunes__meta {
-    color: #9ec8aa;
-    flex: 0 0 auto;
-    font-size: 0.78rem;
-    font-weight: 800;
-    margin-left: auto;
-    white-space: nowrap;
-  }
-
-  .active-tunes__empty {
-    color: #a7b8a9;
-    font-weight: 600;
-  }
-
   .practice-card--empty {
     background: rgba(255, 255, 255, 0.055);
     color: #b7c6b7;
@@ -952,39 +726,6 @@
     gap: 0.85rem;
     justify-content: space-between;
     margin: 0.35rem 0 1rem;
-  }
-
-  .practice-card__toggle {
-    align-items: center;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(214, 237, 218, 0.14);
-    border-radius: 999px;
-    color: #d4e3d2;
-    display: inline-flex;
-    flex: 0 0 auto;
-    gap: 0.42rem;
-    padding: 0.34rem 0.62rem;
-    white-space: nowrap;
-  }
-
-  .practice-card__toggle input {
-    accent-color: #8be0ad;
-    block-size: 0.95rem;
-    inline-size: 0.95rem;
-    margin: 0;
-  }
-
-  .practice-card__toggle span {
-    font-size: 0.78rem;
-    font-weight: 800;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-  }
-
-  .practice-card__toggle:has(input:checked) {
-    background: rgba(136, 219, 165, 0.16);
-    border-color: rgba(136, 219, 165, 0.32);
-    color: #e7f5eb;
   }
 
   .practice-card--empty p {
@@ -1081,17 +822,6 @@
       padding: 1.25rem;
     }
 
-    .trainer-queue__main {
-      align-items: start;
-      grid-template-columns: minmax(0, 1.05fr) minmax(18rem, 0.95fr);
-    }
-
-    .trainer-metrics,
-    .progress-strip,
-    .tune-trainer__status {
-      grid-column: 1 / -1;
-    }
-
     .trainer-metrics {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
@@ -1109,10 +839,6 @@
 
     .trainer-board__actions {
       width: 100%;
-    }
-
-    .active-batch {
-      min-width: 4.25rem;
     }
   }
 </style>
