@@ -98,9 +98,11 @@
 <script>
   const storageKeyBase = "pkapt-tune-trainer-ratings";
   const activeBatchStorageKeyBase = "pkapt-tune-trainer-active-batch";
+  const activeBatchProgressStorageKeyBase = "pkapt-tune-trainer-active-batch-progress";
   const deprioritizedStorageKeyBase = "pkapt-tune-trainer-deprioritized";
   const practiceHistoryKey = "pkapt-practice-history-v1";
   const activeBatchSize = 4;
+  const minimumBatchCycles = 3;
   const tunes = Array.from(document.querySelectorAll<HTMLAnchorElement>("#tunes-list a")).map((link) => ({
     name: link.textContent?.trim() ?? "",
     href: link.href
@@ -141,6 +143,7 @@
   let libraryMode: "songs" | "tunes" = "songs";
   let currentTune: { name: string; href: string } | null = null;
   let activeBatch = loadActiveBatch();
+  let activeBatchProgress = loadActiveBatchProgress(activeBatch);
   let deprioritizedTunes = loadDeprioritizedTunes();
 
   function getEntries() {
@@ -251,13 +254,61 @@
     }
   }
 
+  function createBatchProgress(batch: string[]) {
+    return Object.fromEntries(batch.map((name) => [name, 0]));
+  }
+
+  function normalizeBatchProgress(batch: string[], progress: Record<string, number>) {
+    return batch.reduce<Record<string, number>>((next, name) => {
+      const value = Number(progress[name]);
+      next[name] = Number.isFinite(value) && value >= 0 ? value : 0;
+      return next;
+    }, {});
+  }
+
+  function loadActiveBatchProgress(batch = activeBatch) {
+    const normalizedBatch = Array.isArray(batch) ? batch : [];
+    if (!normalizedBatch.length) return {};
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(getModeStorageKey(activeBatchProgressStorageKeyBase)) ?? "{}");
+      if (!saved || typeof saved !== "object" || Array.isArray(saved)) {
+        return createBatchProgress(normalizedBatch);
+      }
+
+      return normalizeBatchProgress(normalizedBatch, saved as Record<string, number>);
+    } catch {
+      return createBatchProgress(normalizedBatch);
+    }
+  }
+
+  function saveActiveBatchProgress(progress: Record<string, number>, batch = activeBatch) {
+    activeBatchProgress = normalizeBatchProgress(batch, progress);
+    localStorage.setItem(
+      getModeStorageKey(activeBatchProgressStorageKeyBase),
+      JSON.stringify(activeBatchProgress)
+    );
+    renderActiveBatchList();
+  }
+
   function saveActiveBatch(batch: string[]) {
     activeBatch = batch;
     localStorage.setItem(getModeStorageKey(activeBatchStorageKeyBase), JSON.stringify(batch));
+    saveActiveBatchProgress(createBatchProgress(batch), batch);
     pruneDeprioritizedTunes();
     updateActiveBatchCount();
     syncDeprioritizeToggle();
     renderActiveBatchList();
+  }
+
+  function isActiveBatchComplete(batch = activeBatch, progress = activeBatchProgress) {
+    if (!batch.length) return false;
+
+    const ratings = loadRatings();
+    return batch.every((name) => {
+      const cycles = Number(progress[name]);
+      return cycles >= minimumBatchCycles && Number(ratings[name]) === 1;
+    });
   }
 
   function getWeight(tune: { name: string }, ratings: Record<string, number>) {
@@ -343,27 +394,11 @@
       });
   }
 
-  function topUpActiveBatch(batch: string[]) {
-    const nextBatch = [...batch];
-    const targetSize = Math.min(activeBatchSize, getEntries().length);
-    const lowPrioLocked = !areRegularTunesCleared();
-
-    while (nextBatch.length < targetSize) {
-      const excludedNames = new Set([
-        ...nextBatch,
-        ...(lowPrioLocked ? deprioritizedTunes : [])
-      ]);
-      const tune = pickWeightedTune(excludedNames);
-      if (!tune) break;
-      nextBatch.push(tune.name);
-    }
-
-    return nextBatch;
-  }
-
   function ensureActiveBatch() {
-    if (activeBatch.length > 0) {
+    if (activeBatch.length > 0 && !isActiveBatchComplete()) {
+      activeBatchProgress = loadActiveBatchProgress(activeBatch);
       updateActiveBatchCount();
+      renderActiveBatchList();
       return;
     }
 
@@ -463,10 +498,11 @@
       .map((tune) => {
         const currentClass = currentTune?.name === tune.name ? " is-current" : "";
         const deprioritizedClass = deprioritizedTunes.includes(tune.name) ? " is-deprioritized" : "";
+        const cycles = Number(activeBatchProgress[tune.name] ?? 0);
         const badge = deprioritizedTunes.includes(tune.name)
           ? "<span class=\"active-tunes__badge\">Low prio</span>"
           : "";
-        return `<li><a class="active-tunes__link${currentClass}${deprioritizedClass}" href="${tune.href}" target="_blank" rel="noopener noreferrer"><span>${tune.name}</span>${badge}</a></li>`;
+        return `<li><a class="active-tunes__link${currentClass}${deprioritizedClass}" href="${tune.href}" target="_blank" rel="noopener noreferrer"><span>${tune.name}</span><span class="active-tunes__meta">${cycles}/${minimumBatchCycles}</span>${badge}</a></li>`;
       });
 
     activeList.innerHTML = items.length
@@ -517,8 +553,10 @@
     if (progressWork) progressWork.style.width = `${workPct}%`;
 
     if (status) {
+      const batchCyclesMet = activeBatch.filter((name) => Number(activeBatchProgress[name] ?? 0) >= minimumBatchCycles).length;
+      const batchGoodCount = activeBatch.filter((name) => Number(ratings[name]) === 1).length;
       const batchNote = activeBatch.length
-        ? `${activeBatch.length} ${terms.item}${activeBatch.length === 1 ? "" : "s"} active in this batch.`
+        ? `${activeBatch.length} ${terms.item}${activeBatch.length === 1 ? "" : "s"} active in this batch. ${batchCyclesMet}/${activeBatch.length} hit ${minimumBatchCycles} reps and ${batchGoodCount}/${activeBatch.length} are Good.`
         : `A new batch will start on your next ${terms.item}.`;
       status.textContent = `${rated} of ${entries.length} rated. The deck is weighted toward unrated and needs-work ${terms.itemPlural}. ${batchNote}`;
     }
@@ -527,6 +565,13 @@
   }
 
   function showTune(tune: { name: string; href: string }) {
+    if (activeBatch.includes(tune.name)) {
+      saveActiveBatchProgress({
+        ...activeBatchProgress,
+        [tune.name]: Number(activeBatchProgress[tune.name] ?? 0) + 1
+      });
+    }
+
     currentTune = tune;
     if (!tuneLink || !card || !emptyCard) return;
 
@@ -558,12 +603,12 @@
     ratings[currentTune.name] = Number(rating);
     saveRatings(ratings);
 
-    if (Number(rating) <= 2) {
-      saveActiveBatch(activeBatch.filter((name) => name !== currentTune?.name));
-    } else {
-      updateActiveBatchCount();
-      syncDeprioritizeToggle();
-      renderActiveBatchList();
+    if (isActiveBatchComplete()) {
+      saveActiveBatch([]);
+      currentTune = null;
+      if (card) card.hidden = true;
+      if (emptyCard) emptyCard.hidden = false;
+      clearPreview();
     }
 
     updateStatus();
@@ -577,12 +622,14 @@
     if (!window.confirm(`Clear all saved ${terms.item} ratings in this browser?`)) return;
     localStorage.removeItem(getModeStorageKey(storageKeyBase));
     localStorage.removeItem(getModeStorageKey(activeBatchStorageKeyBase));
+    localStorage.removeItem(getModeStorageKey(activeBatchProgressStorageKeyBase));
     localStorage.removeItem(getModeStorageKey(deprioritizedStorageKeyBase));
     localStorage.removeItem(practiceHistoryKey);
     if (card) card.hidden = true;
     if (emptyCard) emptyCard.hidden = false;
     currentTune = null;
     activeBatch = [];
+    activeBatchProgress = {};
     deprioritizedTunes = [];
     updateStatus();
     updateActiveBatchCount();
@@ -598,7 +645,6 @@
     if (deprioritizeInput.checked) {
       if (!deprioritizedTunes.includes(currentTune.name)) {
         saveDeprioritizedTunes([...deprioritizedTunes, currentTune.name]);
-        saveActiveBatch(topUpActiveBatch(activeBatch.filter((name) => name !== currentTune.name)));
       }
       return;
     }
@@ -616,6 +662,7 @@
     libraryMode = customEvent.detail?.mode === "tunes" ? "tunes" : "songs";
     currentTune = null;
     activeBatch = loadActiveBatch();
+    activeBatchProgress = loadActiveBatchProgress(activeBatch);
     deprioritizedTunes = loadDeprioritizedTunes();
     if (card) card.hidden = true;
     if (emptyCard) emptyCard.hidden = false;
@@ -857,6 +904,15 @@
     letter-spacing: 0.04em;
     padding: 0.18rem 0.42rem;
     text-transform: uppercase;
+  }
+
+  .active-tunes__meta {
+    color: #9ec8aa;
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+    font-weight: 800;
+    margin-left: auto;
+    white-space: nowrap;
   }
 
   .active-tunes__empty {
