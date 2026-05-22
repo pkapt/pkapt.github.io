@@ -59,17 +59,6 @@ function resourceKind(href: string) {
   </div>
 
   <div id="library-content" class="library__content">
-    <div class="library__tools">
-      <input id="tune-search" type="search" placeholder="Search tunes" aria-label="Search tunes" />
-      <div class="filter-tabs" aria-label="Filter tunes">
-        <button class="is-active" type="button" data-filter="all">All</button>
-        <button type="button" data-filter="unrated">Unrated</button>
-        <button type="button" data-filter="3">Needs Work</button>
-        <button type="button" data-filter="2">OK</button>
-        <button type="button" data-filter="1">Good</button>
-      </div>
-    </div>
-
     <div id="tunes-list" class="tune-grid">
       {tunes.map((tune) => (
         <article class="tune-card" data-tune-card data-name={tune.name} data-kind={resourceKind(tune.href)}>
@@ -81,7 +70,6 @@ function resourceKind(href: string) {
         </article>
       ))}
     </div>
-    <p id="empty-library-message" class="empty-message" hidden>No tunes match that filter.</p>
   </div>
 </section>
 
@@ -186,21 +174,17 @@ function resourceKind(href: string) {
   const libraryModeSelect = document.getElementById("library-mode") as HTMLSelectElement | null;
   const pageTitle = document.getElementById("page-title");
   const library = document.getElementById("tune-library");
-  const searchInput = document.getElementById("tune-search") as HTMLInputElement | null;
   const libraryToggle = document.getElementById("library-toggle") as HTMLButtonElement | null;
   const songLibrary = document.getElementById("song-library");
   const songSearchInput = document.getElementById("song-search") as HTMLInputElement | null;
   const songLibraryToggle = document.getElementById("song-library-toggle") as HTMLButtonElement | null;
-  const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-filter]"));
   const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-tune-card]"));
   const songCards = Array.from(document.querySelectorAll<HTMLElement>("[data-song-card]"));
-  const emptyMessage = document.getElementById("empty-library-message");
   const emptySongMessage = document.getElementById("empty-song-library-message");
   const practiceHistoryCalendar = document.getElementById("practice-history-calendar");
   const practiceHistoryMonths = document.getElementById("practice-history-months");
   const practiceHistoryCount = document.getElementById("practice-history-count");
   const trainerShell = document.querySelector<HTMLElement>(".trainer-shell");
-  let activeFilter = "all";
   let libraryMode: "songs" | "tunes" = "songs";
 
   function loadLibraryMode() {
@@ -237,12 +221,16 @@ function resourceKind(href: string) {
     return `${base}-${libraryMode}-v1`;
   }
 
-  function loadRatings(): Record<string, number> {
+  function loadRatingsForMode(mode: "songs" | "tunes"): Record<string, number> {
     try {
-      return JSON.parse(localStorage.getItem(getModeStorageKey(storageKeyBase)) ?? "{}");
+      return JSON.parse(localStorage.getItem(`${storageKeyBase}-${mode}-v1`) ?? "{}");
     } catch {
       return {};
     }
+  }
+
+  function loadTuneRatings() {
+    return loadRatingsForMode("tunes");
   }
 
   function labelForRating(rating?: number) {
@@ -337,18 +325,11 @@ function resourceKind(href: string) {
   }
 
   function syncLibrary() {
-    const ratings = loadRatings();
-    const query = searchInput?.value.trim().toLowerCase() ?? "";
-    let visibleCount = 0;
+    const ratings = loadTuneRatings();
 
     cards.forEach((card) => {
       const name = card.dataset.name ?? "";
       const rating = ratings[name];
-      const matchesSearch = name.toLowerCase().includes(query);
-      const matchesFilter =
-        activeFilter === "all" ||
-        (activeFilter === "unrated" && !rating) ||
-        String(rating) === activeFilter;
 
       const pill = card.querySelector<HTMLElement>("[data-rating-pill]");
       if (pill) {
@@ -357,11 +338,8 @@ function resourceKind(href: string) {
       }
 
       card.dataset.rating = rating ? String(rating) : "unrated";
-      card.hidden = !(matchesSearch && matchesFilter);
-      if (!card.hidden) visibleCount += 1;
+      card.hidden = false;
     });
-
-    if (emptyMessage) emptyMessage.hidden = visibleCount > 0;
   }
 
   function syncSongLibrary() {
@@ -391,14 +369,6 @@ function resourceKind(href: string) {
     trainerShell?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  filterButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      activeFilter = button.dataset.filter ?? "all";
-      filterButtons.forEach((item) => item.classList.toggle("is-active", item === button));
-      syncLibrary();
-    });
-  });
-
   cards.forEach((card) => {
     const link = card.querySelector<HTMLAnchorElement>("a");
     if (!link) return;
@@ -417,7 +387,6 @@ function resourceKind(href: string) {
     });
   });
 
-  searchInput?.addEventListener("input", syncLibrary);
   songSearchInput?.addEventListener("input", syncSongLibrary);
   libraryModeSelect?.addEventListener("change", () => {
     const mode = libraryModeSelect.value === "tunes" ? "tunes" : "songs";
@@ -743,19 +712,6 @@ function resourceKind(href: string) {
     border-color: rgba(30, 104, 77, 0.42);
   }
 
-  #tune-search {
-    background: rgba(6, 12, 9, 0.72);
-    border: 1px solid rgba(214, 237, 218, 0.18);
-    border-radius: 8px;
-    color: #f2f4ea;
-    padding: 0.7rem 0.8rem;
-    width: 100%;
-  }
-
-  #tune-search::placeholder {
-    color: #89988d;
-  }
-
   #song-search {
     background: rgba(6, 12, 9, 0.72);
     border: 1px solid rgba(214, 237, 218, 0.18);
@@ -767,28 +723,6 @@ function resourceKind(href: string) {
 
   #song-search::placeholder {
     color: #89988d;
-  }
-
-  .filter-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-  }
-
-  .filter-tabs button {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid transparent;
-    border-radius: 999px;
-    color: #c5d1c1;
-    cursor: pointer;
-    font-size: 0.85rem;
-    font-weight: 750;
-    padding: 0.45rem 0.7rem;
-  }
-
-  .filter-tabs button.is-active {
-    background: #8be0ad;
-    color: #07110d;
   }
 
   .tune-grid {
