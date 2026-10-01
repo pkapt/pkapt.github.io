@@ -177,15 +177,12 @@
 
 <style>
   .practice-tools-shell {
-    background:
-      linear-gradient(135deg, rgba(17, 28, 22, 0.92), rgba(20, 24, 19, 0.84)),
-      radial-gradient(circle at 82% 16%, rgba(225, 150, 72, 0.2), transparent 22rem),
-      radial-gradient(circle at 18% 20%, rgba(74, 184, 129, 0.18), transparent 20rem);
-    border: 1px solid rgba(214, 237, 218, 0.14);
-    border-radius: 8px;
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
-    margin-bottom: 1rem;
-    padding: 1rem;
+    background: #ffffff;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
+    box-shadow: none;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
   }
 
   .practice-tools-grid {
@@ -194,11 +191,11 @@
   }
 
   .practice-tools__label {
-    color: #9edfb7;
+    color: #828282;
     display: block;
     font-size: 0.78rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
+    font-weight: 700;
+    letter-spacing: 0;
     text-transform: uppercase;
   }
 
@@ -206,10 +203,10 @@
   .ghost-action,
   .practice-timer__duration input,
   .metronome__bpm input {
-    border-radius: 7px;
-    font-weight: 800;
-    min-height: 2.7rem;
-    padding: 0.55rem 0.8rem;
+    border-radius: 0;
+    font-weight: 700;
+    min-height: 2.2rem;
+    padding: 0.35rem 0.7rem;
   }
 
   .primary-action,
@@ -218,28 +215,28 @@
   }
 
   .primary-action {
-    background: #8be0ad;
-    border: 1px solid #8be0ad;
-    color: #07110d;
+    background: #ff6600;
+    border: 1px solid #c45500;
+    color: #fff;
     flex: 1;
   }
 
   .ghost-action {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(214, 237, 218, 0.16);
-    color: #d4e3d2;
+    background: #efefef;
+    border: 1px solid #b8b1a5;
+    color: #222;
   }
 
   .practice-timer,
   .metronome {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(214, 237, 218, 0.12);
-    border-radius: 8px;
-    padding: 1rem;
+    background: #f6f6ef;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
+    padding: 0.75rem;
   }
 
   .metronome {
-    background: rgba(255, 255, 255, 0.055);
+    background: #f6f6ef;
   }
 
   .practice-timer__header,
@@ -261,36 +258,36 @@
 
   .practice-timer__duration,
   .metronome__bpm {
-    color: #a7b8a9;
+    color: #666;
     display: grid;
     flex: 0 0 6.6rem;
     font-size: 0.76rem;
-    font-weight: 780;
+    font-weight: 700;
     gap: 0.24rem;
     text-transform: uppercase;
   }
 
   .practice-timer__duration input,
   .metronome__bpm input {
-    background: rgba(6, 12, 9, 0.72);
-    border: 1px solid rgba(214, 237, 218, 0.18);
+    background: #fff;
+    border: 1px solid #b8b1a5;
     box-sizing: border-box;
-    color: #f2f4ea;
+    color: #222;
     width: 100%;
   }
 
   .practice-timer__duration input:disabled {
-    color: #92a296;
+    color: #888;
     opacity: 0.75;
   }
 
   .practice-timer__display {
-    color: #fff;
-    font-size: clamp(2.6rem, 9vw, 4.4rem);
+    color: #222;
+    font-size: clamp(2.2rem, 9vw, 3.4rem);
     font-variant-numeric: tabular-nums;
-    font-weight: 850;
+    font-weight: 700;
     line-height: 1;
-    margin: 0.9rem 0;
+    margin: 0.75rem 0;
   }
 
   .practice-timer__actions .primary-action {
@@ -298,7 +295,7 @@
   }
 
   .metronome__actions {
-    margin-top: 0.9rem;
+    margin-top: 0.75rem;
   }
 
   .metronome__actions .primary-action {
@@ -306,14 +303,14 @@
   }
 
   .metronome__status {
-    color: #a7b8a9;
+    color: #666;
     font-size: 0.9rem;
-    font-weight: 760;
+    font-weight: 700;
   }
 
   @media (min-width: 860px) {
     .practice-tools-shell {
-      padding: 1.25rem;
+      padding: 0.75rem;
     }
 
     .practice-tools-grid {

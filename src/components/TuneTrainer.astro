@@ -557,22 +557,19 @@
 
 <style>
   .trainer-shell {
-    background:
-      linear-gradient(135deg, rgba(17, 28, 22, 0.92), rgba(20, 24, 19, 0.84)),
-      radial-gradient(circle at 82% 16%, rgba(225, 150, 72, 0.2), transparent 22rem),
-      radial-gradient(circle at 18% 20%, rgba(74, 184, 129, 0.18), transparent 20rem);
-    border: 1px solid rgba(214, 237, 218, 0.14);
-    border-radius: 8px;
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+    background: #ffffff;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
+    box-shadow: none;
     display: grid;
-    gap: 1rem;
-    margin-bottom: 1rem;
-    padding: 1rem;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
   }
 
   .trainer-queue {
     display: grid;
-    gap: 0.8rem;
+    gap: 0.65rem;
   }
 
   .trainer-board__top {
@@ -588,10 +585,10 @@
   .primary-action,
   .ghost-action,
   .tune-trainer__rating button {
-    border-radius: 7px;
-    font-weight: 800;
-    min-height: 2.7rem;
-    padding: 0.55rem 0.8rem;
+    border-radius: 0;
+    font-weight: 700;
+    min-height: 2.2rem;
+    padding: 0.35rem 0.7rem;
   }
 
   .primary-action,
@@ -601,35 +598,34 @@
   }
 
   .primary-action {
-    background: #8be0ad;
-    border: 1px solid #8be0ad;
-    color: #07110d;
+    background: #ff6600;
+    border: 1px solid #c45500;
+    color: #fff;
     flex: 1;
   }
 
   .ghost-action {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(214, 237, 218, 0.16);
-    color: #d4e3d2;
+    background: #efefef;
+    border: 1px solid #b8b1a5;
+    color: #222;
   }
 
   .practice-card {
-    background:
-      linear-gradient(135deg, rgba(7, 17, 13, 0.96), rgba(20, 33, 24, 0.94));
-    border: 1px solid rgba(214, 237, 218, 0.12);
-    border-radius: 8px;
-    color: #fff;
-    min-height: 10rem;
-    padding: 1rem;
+    background: #f6f6ef;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
+    color: #222;
+    min-height: 8rem;
+    padding: 0.75rem;
   }
 
   .tune-preview {
-    background: rgba(255, 255, 255, 0.055);
-    border: 1px solid rgba(214, 237, 218, 0.12);
-    border-radius: 8px;
+    background: #ffffff;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
     display: grid;
-    gap: 0.8rem;
-    padding: 0.9rem;
+    gap: 0.65rem;
+    padding: 0.75rem;
   }
 
   .tune-preview__header {
@@ -648,15 +644,15 @@
   }
 
   .tune-preview__toggle {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(214, 237, 218, 0.14);
-    border-radius: 999px;
-    color: #d4e3d2;
+    background: #efefef;
+    border: 1px solid #b8b1a5;
+    border-radius: 0;
+    color: #222;
     cursor: pointer;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-weight: 700;
     min-height: 2rem;
-    padding: 0.35rem 0.7rem;
+    padding: 0.25rem 0.55rem;
     text-transform: uppercase;
   }
 
@@ -665,59 +661,60 @@
   }
 
   .tune-preview__header a {
-    color: #b8eec9;
+    color: #0000ee;
     flex: 0 0 auto;
     font-size: 0.86rem;
     font-weight: 700;
     margin: 0;
-    text-decoration: none;
+    text-decoration: underline;
   }
 
   .tune-preview__pdf {
     background: #fff;
     block-size: min(84vh, 1080px);
-    border: 0;
-    border-radius: 6px;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
     inline-size: 100%;
   }
 
   .tune-preview__image {
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 6px;
+    background: #fff;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
     inline-size: 100%;
     max-block-size: 70vh;
     object-fit: contain;
   }
 
   .tune-preview__fallback {
-    color: #a7b8a9;
+    color: #666;
     margin: 0;
   }
 
   .practice-card--empty {
-    background: rgba(255, 255, 255, 0.055);
-    color: #b7c6b7;
+    background: #ffffff;
+    color: #666;
   }
 
   .practice-card__label {
-    color: #9edfb7;
+    color: #828282;
     display: block;
     font-size: 0.78rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
+    font-weight: 700;
+    letter-spacing: 0;
     text-transform: uppercase;
   }
 
   .practice-card a {
-    color: #fff;
+    color: #0000ee;
     display: block;
     flex: 1;
-    font-size: clamp(1.6rem, 4vw, 2.6rem);
-    font-weight: 850;
-    line-height: 1.05;
+    font-size: clamp(1.3rem, 3vw, 2rem);
+    font-weight: 700;
+    line-height: 1.2;
     margin: 0;
     min-width: 0;
-    text-decoration: none;
+    text-decoration: underline;
   }
 
   .practice-card__header {
@@ -729,7 +726,7 @@
   }
 
   .practice-card--empty p {
-    font-size: 1.15rem;
+    font-size: 1rem;
     margin: 0.4rem 0 0;
   }
 
@@ -740,56 +737,57 @@
   }
 
   .tune-trainer__rating button {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(214, 237, 218, 0.16);
-    color: #f2f4ea;
+    background: #efefef;
+    border: 1px solid #b8b1a5;
+    color: #222;
   }
 
   .trainer-metrics {
     display: grid;
-    gap: 0.55rem;
+    gap: 0.5rem;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .metric {
-    background: rgba(255, 255, 255, 0.065);
-    border: 1px solid rgba(214, 237, 218, 0.12);
-    border-radius: 8px;
-    padding: 0.75rem;
+    background: #f6f6ef;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
+    padding: 0.65rem;
   }
 
   .metric span {
     display: block;
-    font-size: 1.55rem;
-    font-weight: 850;
+    font-size: 1.35rem;
+    font-weight: 700;
     line-height: 1;
   }
 
   .metric p {
-    color: #a7b8a9;
+    color: #666;
     font-size: 0.78rem;
-    font-weight: 760;
+    font-weight: 700;
     margin: 0.24rem 0 0;
     text-transform: uppercase;
   }
 
   .metric--good span {
-    color: #91eba0;
+    color: #3d6b23;
   }
 
   .metric--ok span {
-    color: #f0d076;
+    color: #7a5a00;
   }
 
   .metric--work span {
-    color: #ff9f8e;
+    color: #9a3000;
   }
 
   .progress-strip {
-    background: rgba(255, 255, 255, 0.09);
-    border-radius: 999px;
+    background: #ebe6dc;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
     display: flex;
-    height: 0.6rem;
+    height: 0.7rem;
     overflow: hidden;
   }
 
@@ -800,26 +798,26 @@
   }
 
   #progress-good {
-    background: #72d985;
+    background: #8ebf72;
   }
 
   #progress-ok {
-    background: #e9c75e;
+    background: #e0c15a;
   }
 
   #progress-work {
-    background: #ef765b;
+    background: #d97d52;
   }
 
   .tune-trainer__status {
-    color: #a7b8a9;
+    color: #666;
     margin: 0;
   }
 
   @media (min-width: 860px) {
     .trainer-shell {
       grid-template-columns: 1fr;
-      padding: 1.25rem;
+      padding: 0.75rem;
     }
 
     .trainer-metrics {

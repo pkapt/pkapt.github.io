@@ -263,6 +263,39 @@ function resourceKind(href: string) {
     window.dispatchEvent(new CustomEvent("practice-history-changed"));
   }
 
+  function generateSamplePracticeHistory() {
+    const sampleDays: string[] = [];
+    const today = new Date();
+
+    for (let offset = 370; offset >= 0; offset -= 1) {
+      const date = new Date(today);
+      date.setHours(0, 0, 0, 0);
+      date.setDate(today.getDate() - offset);
+
+      if (date > today) continue;
+
+      const weekIndex = Math.floor((370 - offset) / 7);
+      const dayOfWeek = date.getDay();
+      const shouldPractice =
+        weekIndex < 10 ? [1, 3].includes(dayOfWeek)
+        : weekIndex < 24 ? [1, 2, 4].includes(dayOfWeek)
+        : weekIndex < 40 ? [0, 2, 3, 5].includes(dayOfWeek)
+        : [1, 2, 3, 4, 6].includes(dayOfWeek);
+
+      if (shouldPractice) {
+        sampleDays.push(formatPracticeDate(date));
+      }
+    }
+
+    return sampleDays;
+  }
+
+  function seedPracticeHistoryIfEmpty() {
+    const history = loadPracticeHistory();
+    if (history.length > 0) return;
+    savePracticeHistory(generateSamplePracticeHistory());
+  }
+
   function markTodayPracticed() {
     const today = formatPracticeDate(new Date());
     const history = loadPracticeHistory();
@@ -277,7 +310,7 @@ function resourceKind(href: string) {
     const totalDays = history.size;
     practiceHistoryCount.textContent = `${totalDays} day${totalDays === 1 ? "" : "s"}`;
 
-    const weeks = 18;
+    const weeks = 53;
     const today = new Date();
     const end = new Date(today);
     const dayOfWeek = end.getDay();
@@ -404,6 +437,7 @@ function resourceKind(href: string) {
   window.addEventListener("tune-ratings-changed", syncLibrary);
   window.addEventListener("tune-practiced", markTodayPracticed);
   window.addEventListener("practice-history-changed", renderPracticeHistory);
+  seedPracticeHistoryIfEmpty();
   setLibraryOpen(library, libraryToggle, false);
   setLibraryOpen(songLibrary, songLibraryToggle, false);
   syncLibrary();
@@ -414,54 +448,60 @@ function resourceKind(href: string) {
 
 <style>
   .hero {
-    margin-bottom: 1.25rem;
+    background: #ff6600;
+    border: 1px solid #c45500;
+    margin-bottom: 0.75rem;
+    padding: 0.6rem 0.75rem;
   }
 
   .panel,
   .library {
-    background: rgba(18, 27, 21, 0.82);
-    border: 1px solid rgba(214, 237, 218, 0.13);
-    box-shadow: 0 18px 54px rgba(0, 0, 0, 0.28);
-    backdrop-filter: blur(14px);
+    background: #ffffff;
+    border: 1px solid #d6d0c4;
+    box-shadow: none;
   }
 
   .utility-grid {
     display: grid;
-    gap: 1rem;
+    gap: 0.75rem;
     grid-template-columns: 1fr;
-    margin: 1rem 0;
+    margin: 0.75rem 0;
   }
 
   .hero__title-row {
     align-items: end;
     display: flex;
     flex-wrap: wrap;
-    gap: 0.9rem 1rem;
+    gap: 0.75rem 1rem;
+  }
+
+  .hero h1,
+  .hero .eyebrow,
+  .hero__select-label {
+    color: #fff;
   }
 
   .hero__select-wrap {
     display: grid;
-    gap: 0.35rem;
+    gap: 0.2rem;
     justify-items: start;
   }
 
   .hero__select-label {
-    color: #a7b8a9;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+    font-weight: 700;
     text-transform: uppercase;
   }
 
   .hero__select {
-    appearance: none;
-    background: rgba(6, 12, 9, 0.72);
-    border: 1px solid rgba(214, 237, 218, 0.18);
-    border-radius: 8px;
-    color: #f2f4ea;
+    appearance: auto;
+    background: #fff;
+    border: 1px solid #b8b1a5;
+    border-radius: 0;
+    color: #222;
     cursor: pointer;
     min-width: 9rem;
-    padding: 0.6rem 2.2rem 0.6rem 0.8rem;
+    padding: 0.2rem 0.35rem;
   }
 
   .practice-history {
@@ -469,27 +509,27 @@ function resourceKind(href: string) {
   }
 
   .practice-history__panel {
-    background: #0d1117;
-    border: 1px solid #30363d;
+    background: #ffffff;
+    border: 1px solid #d6d0c4;
     box-shadow: none;
-    padding: 1rem;
+    padding: 0.75rem;
   }
 
   .practice-history__calendar-wrap {
-    background: #0d1117;
-    border: 1px solid #30363d;
-    border-radius: 6px;
-    margin-top: 1rem;
+    background: #f6f8fa;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
+    margin-top: 0.75rem;
     overflow-x: auto;
-    padding: 0.8rem;
+    padding: 0.75rem;
   }
 
   .practice-history__grid {
-    column-gap: 0.45rem;
+    column-gap: 0.3rem;
     display: grid;
-    grid-template-columns: 2.2rem max-content;
+    grid-template-columns: 2.1rem max-content;
     grid-template-rows: auto auto;
-    row-gap: 0.35rem;
+    row-gap: 0.3rem;
     width: max-content;
   }
 
@@ -499,28 +539,28 @@ function resourceKind(href: string) {
   }
 
   .practice-history__months {
-    color: #8b949e;
-    column-gap: 0.25rem;
+    color: #767676;
+    column-gap: 0.2rem;
     display: grid;
-    font-size: 0.7rem;
-    font-weight: 500;
+    font-size: 11px;
+    font-weight: 400;
     grid-column: 2;
     grid-row: 1;
-    grid-template-columns: repeat(18, 0.9rem);
+    grid-template-columns: repeat(53, 0.8rem);
     justify-content: start;
     line-height: 1;
   }
 
   .practice-history__weekdays {
-    color: #8b949e;
+    color: #767676;
     display: grid;
-    font-size: 0.68rem;
-    font-weight: 500;
+    font-size: 11px;
+    font-weight: 400;
     grid-column: 1;
     grid-row: 2;
-    grid-template-rows: repeat(7, 0.9rem);
-    line-height: 0.9rem;
-    row-gap: 0.25rem;
+    grid-template-rows: repeat(7, 0.8rem);
+    line-height: 0.8rem;
+    row-gap: 0.2rem;
   }
 
   .practice-history__weekdays span:nth-child(1) {
@@ -536,8 +576,8 @@ function resourceKind(href: string) {
   }
 
   .practice-history__calendar {
-    background: #0d1117;
-    column-gap: 0.25rem;
+    background: #f6f8fa;
+    column-gap: 0.2rem;
     display: flex;
     grid-column: 2;
     grid-row: 2;
@@ -546,27 +586,30 @@ function resourceKind(href: string) {
 
   .practice-history__week {
     display: grid;
-    gap: 0.25rem;
-    grid-template-rows: repeat(7, 0.9rem);
+    gap: 0.2rem;
+    grid-template-columns: 0.8rem;
+    grid-template-rows: repeat(7, 0.8rem);
+    width: 0.8rem;
   }
 
   .practice-history__day {
-    background: #161b22;
-    border: 1px solid #21262d;
-    border-radius: 2px;
+    background: #ebedf0;
+    border: 1px solid rgba(27, 31, 35, 0.12);
+    box-sizing: border-box;
+    border-radius: 0;
     display: block;
-    height: 0.9rem;
-    width: 0.9rem;
+    height: 0.8rem;
+    width: 0.8rem;
   }
 
   .practice-history__day.is-practiced {
     background: #2ea043;
-    border-color: #2ea043;
+    border-color: rgba(27, 31, 35, 0.12);
   }
 
   .practice-history__day.is-future {
-    background: #0f141b;
-    border-color: #1b2128;
+    background: #ffffff;
+    border-color: rgba(27, 31, 35, 0.08);
   }
 
   .practice-history .panel__header h2 {
@@ -576,9 +619,9 @@ function resourceKind(href: string) {
   .practice-history .panel__header span {
     background: transparent;
     border-radius: 0;
-    color: #c9d1d9;
+    color: #666;
     font-size: 0.95rem;
-    font-weight: 500;
+    font-weight: 700;
     padding: 0;
   }
 
@@ -589,26 +632,26 @@ function resourceKind(href: string) {
   }
 
   .page-reset__button {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(214, 237, 218, 0.16);
-    border-radius: 7px;
-    color: #d4e3d2;
+    background: #efefef;
+    border: 1px solid #b8b1a5;
+    border-radius: 0;
+    color: #222;
     cursor: pointer;
-    font-weight: 800;
-    min-height: 2.7rem;
+    font-weight: 700;
+    min-height: 2.2rem;
     min-width: 10rem;
-    padding: 0.55rem 0.9rem;
+    padding: 0.35rem 0.7rem;
   }
 
   .page-reset__button:hover {
-    background: rgba(136, 219, 165, 0.1);
-    border-color: rgba(30, 104, 77, 0.42);
+    background: #fff7ef;
+    border-color: #ff6600;
   }
 
   .panel,
   .library {
-    border-radius: 8px;
-    padding: 1rem;
+    border-radius: 0;
+    padding: 0.75rem;
   }
 
   .panel__header,
@@ -620,12 +663,13 @@ function resourceKind(href: string) {
   }
 
   .panel__header span {
-    background: rgba(136, 219, 165, 0.14);
-    border-radius: 999px;
-    color: #a4e6ba;
+    background: #f6f6ef;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
+    color: #666;
     font-size: 0.82rem;
-    font-weight: 750;
-    padding: 0.22rem 0.55rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
   }
 
   .track-buttons {
@@ -637,21 +681,21 @@ function resourceKind(href: string) {
 
   .track-button,
   .link-stack a {
-    background: rgba(255, 255, 255, 0.055);
-    border: 1px solid rgba(214, 237, 218, 0.12);
-    border-radius: 7px;
-    color: #ecf4e8;
+    background: #f6f6ef;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
+    color: #222;
     font-weight: 700;
-    padding: 0.7rem;
+    padding: 0.55rem 0.65rem;
     text-decoration: none;
   }
 
   .track-button:hover,
   .link-stack a:hover,
   .tune-card:hover {
-    border-color: rgba(30, 104, 77, 0.42);
-    background: rgba(136, 219, 165, 0.1);
-    transform: translateY(-1px);
+    border-color: #ff6600;
+    background: #fff7ef;
+    transform: none;
   }
 
   .link-stack {
@@ -667,8 +711,8 @@ function resourceKind(href: string) {
   }
 
   .link-stack small {
-    color: #a7b8a9;
-    font-weight: 650;
+    color: #828282;
+    font-weight: 700;
   }
 
   .library {
@@ -697,32 +741,32 @@ function resourceKind(href: string) {
   }
 
   .library-toggle {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(214, 237, 218, 0.14);
-    border-radius: 999px;
-    color: #d4e3d2;
+    background: #efefef;
+    border: 1px solid #b8b1a5;
+    border-radius: 0;
+    color: #222;
     cursor: pointer;
     font-size: 0.82rem;
-    font-weight: 800;
-    padding: 0.5rem 0.8rem;
+    font-weight: 700;
+    padding: 0.3rem 0.6rem;
   }
 
   .library-toggle:hover {
-    background: rgba(136, 219, 165, 0.1);
-    border-color: rgba(30, 104, 77, 0.42);
+    background: #fff7ef;
+    border-color: #ff6600;
   }
 
   #song-search {
-    background: rgba(6, 12, 9, 0.72);
-    border: 1px solid rgba(214, 237, 218, 0.18);
-    border-radius: 8px;
-    color: #f2f4ea;
-    padding: 0.7rem 0.8rem;
+    background: #fff;
+    border: 1px solid #b8b1a5;
+    border-radius: 0;
+    color: #222;
+    padding: 0.4rem 0.5rem;
     width: 100%;
   }
 
   #song-search::placeholder {
-    color: #89988d;
+    color: #999;
   }
 
   .tune-grid {
@@ -733,66 +777,67 @@ function resourceKind(href: string) {
 
   .tune-card {
     align-items: center;
-    background: rgba(255, 255, 255, 0.055);
-    border: 1px solid rgba(214, 237, 218, 0.1);
-    border-radius: 8px;
+    background: #f6f6ef;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
     display: flex;
     gap: 1rem;
     justify-content: space-between;
-    min-height: 4.2rem;
-    padding: 0.8rem;
-    transition: border-color 150ms ease, transform 150ms ease;
+    min-height: 3.5rem;
+    padding: 0.6rem 0.7rem;
+    transition: border-color 120ms ease, background-color 120ms ease;
   }
 
   .tune-card a {
-    color: #f2f4ea;
-    font-weight: 760;
-    text-decoration: none;
+    color: #0000ee;
+    font-weight: 700;
+    text-decoration: underline;
   }
 
   .tune-card p {
-    color: #95a499;
+    color: #828282;
     font-size: 0.82rem;
     margin: 0.15rem 0 0;
     text-transform: capitalize;
   }
 
   .rating-pill {
-    border-radius: 999px;
+    border: 1px solid #d6d0c4;
+    border-radius: 0;
     flex: 0 0 auto;
     font-size: 0.74rem;
-    font-weight: 800;
-    padding: 0.32rem 0.52rem;
+    font-weight: 700;
+    padding: 0.22rem 0.45rem;
     text-transform: uppercase;
   }
 
   .rating-pill[data-rating="1"] {
-    background: rgba(113, 217, 132, 0.18);
-    color: #91eba0;
+    background: #eef8ea;
+    color: #3d6b23;
   }
 
   .rating-pill[data-rating="2"] {
-    background: rgba(241, 199, 86, 0.18);
-    color: #f0d076;
+    background: #fff7d8;
+    color: #7a5a00;
   }
 
   .rating-pill[data-rating="3"] {
-    background: rgba(238, 118, 91, 0.2);
-    color: #ff9f8e;
+    background: #ffe7dd;
+    color: #9a3000;
   }
 
   .rating-pill[data-rating="unrated"] {
-    background: rgba(255, 255, 255, 0.09);
-    color: #b6c3b6;
+    background: #efefef;
+    color: #666;
   }
 
   .rating-pill--neutral {
-    background: rgba(255, 255, 255, 0.09);
-    color: #b6c3b6;
+    background: #efefef;
+    color: #666;
   }
 
   .empty-message {
-    color: #a7b8a9;
+    color: #828282;
     margin: 1rem 0 0;
   }
 
